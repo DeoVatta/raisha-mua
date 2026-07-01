@@ -26,6 +26,35 @@
             box-sizing: border-box;
         }
 
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(28px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        @keyframes scaleUp {
+            from { opacity: 0; transform: scale(0.94); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        .anim {
+            opacity: 0;
+            transform: translateY(28px);
+        }
+        .anim.visible {
+            animation: fadeUp 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .anim-d1 { animation-delay: 0.08s; }
+        .anim-d2 { animation-delay: 0.16s; }
+        .anim-d3 { animation-delay: 0.24s; }
+        .anim-d4 { animation-delay: 0.32s; }
+        .anim-d5 { animation-delay: 0.40s; }
+        .anim-scale { opacity: 0; }
+        .anim-scale.visible { animation: scaleUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--bg);
@@ -585,16 +614,6 @@
         }
 
         /* ==================== RESPONSIVE ==================== */
-        @media (max-width: 768px) {
-            .cover { padding: 40px 24px; }
-            .cover-logo { font-size: 48px; letter-spacing: 4px; }
-            .cover-title { font-size: 22px; }
-            .doc-page { padding: 80px 20px 80px; }
-            .section-title { font-size: 26px; }
-            .signatures { grid-template-columns: 1fr; gap: 30px; }
-            .nav { padding: 0 16px; }
-            .cards { grid-template-columns: 1fr; }
-        }
 
         /* ==================== PROFILE SECTION ==================== */
         .profile-card {
@@ -689,7 +708,7 @@
 <body>
 
 <!-- ==================== COVER PAGE ==================== -->
-<div class="cover" id="cover">
+<div class="cover anim anim-scale" id="cover">
     <div class="cover-ornament-top"></div>
     <div class="cover-logo">RAISHA MUA</div>
     <div class="cover-subtitle">Business Partnership Proposal</div>
@@ -724,7 +743,7 @@
 <div class="doc-page">
 
     <!-- 1. EXECUTIVE SUMMARY -->
-    <div class="section" id="executive-summary">
+    <div class="section anim" id="executive-summary">
         <div class="section-label">Section 01</div>
         <h2 class="section-title">Executive Summary</h2>
 
@@ -738,7 +757,7 @@
     </div>
 
     <!-- 2. PROFIL -->
-    <div class="section" id="profil">
+    <div class="section anim" id="profil">
         <div class="section-label">Section 02</div>
         <h2 class="section-title">Profil Raisha MUA</h2>
 
@@ -771,7 +790,7 @@
     </div>
 
     <!-- 3. ANALISIS SWOT -->
-    <div class="section" id="analisis">
+    <div class="section anim" id="analisis">
         <div class="section-label">Section 03</div>
         <h2 class="section-title">Kondisi Saat Ini & Analisis SWOT</h2>
 
@@ -835,7 +854,7 @@
     </div>
 
     <!-- 4. SOLUSI -->
-    <div class="section" id="solusi">
+    <div class="section anim" id="solusi">
         <div class="section-label">Section 04</div>
         <h2 class="section-title">Solusi & Rencana Kerjasama</h2>
 
@@ -846,33 +865,33 @@
 
         <h3 class="section-subtitle">7 Area Perbaikan yang Akan Dilakukan</h3>
 
-        <div class="cards">
-            <div class="card">
+        <div class="cards anim">
+            <div class="card anim anim-d1">
                 <div class="card-num">01</div>
                 <div class="card-title">Arsitektur Bisnis</div>
                 <div class="card-desc">Mengatur ulang flow bisnis dari Awareness → Selling Conversion → Aftersales</div>
             </div>
-            <div class="card">
+            <div class="card anim anim-d1">
                 <div class="card-num">02</div>
                 <div class="card-title">Sistem Pembayaran & Penawaran</div>
                 <div class="card-desc">Membuat paket dan sistem pembayaran yang lebih menarik & kompetitif</div>
             </div>
-            <div class="card">
+            <div class="card anim anim-d2">
                 <div class="card-num">03</div>
                 <div class="card-title">Marketing Plan</div>
                 <div class="card-desc">Menyusun strategi marketing agar brand lebih dikenal dan menjangkau pasar lebih luas</div>
             </div>
-            <div class="card">
+            <div class="card anim anim-d3">
                 <div class="card-num">04</div>
                 <div class="card-title">Brand Positioning</div>
                 <div class="card-desc">Menentukan posisi Raisha MUA di pasar agar berbeda dan lebih menonjol dari kompetitor</div>
             </div>
-            <div class="card">
+            <div class="card anim anim-d4">
                 <div class="card-num">05</div>
                 <div class="card-title">Website</div>
                 <div class="card-desc">Company Profile, Online Calendar, Testimonial, dan Booking Online</div>
             </div>
-            <div class="card">
+            <div class="card anim anim-d5">
                 <div class="card-num">06</div>
                 <div class="card-title">Event Online & Offline</div>
                 <div class="card-desc">Meningkatkan kontribusi dan mendapatkan relasi lebih besar</div>
@@ -881,7 +900,7 @@
     </div>
 
     <!-- 5. SCOPE OF WORK -->
-    <div class="section" id="scope">
+    <div class="section anim" id="scope">
         <div class="section-label">Section 05</div>
         <h2 class="section-title">Ruang Lingkup Kerja<br><small style="font-family:'Inter';font-size:16px;font-weight:400;color:var(--text-light)">Scope of Work</small></h2>
 
@@ -982,7 +1001,7 @@
     </div>
 
     <!-- 6. STRUKTUR KEMITRAAN -->
-    <div class="section" id="mitra">
+    <div class="section anim" id="mitra">
         <div class="section-label">Section 06</div>
         <h2 class="section-title">Struktur Kemitraan & Kontribusi</h2>
 
@@ -1067,7 +1086,7 @@
     </div>
 
     <!-- 7. MODEL PEMBAGIAN REVENUE -->
-    <div class="section" id="revenue">
+    <div class="section anim" id="revenue">
         <div class="section-label">Section 07</div>
         <h2 class="section-title">Model Pembagian Revenue</h2>
 
@@ -1124,7 +1143,7 @@ Pemasukan Masuk (dari klien)
     </div>
 
     <!-- 8. MARKET FOCUS -->
-    <div class="section" id="market">
+    <div class="section anim" id="market">
         <div class="section-label">Section 08</div>
         <h2 class="section-title">Market Focus & Estimasi Project</h2>
 
@@ -1185,13 +1204,13 @@ Pemasukan Masuk (dari klien)
     </div>
 
     <!-- 9. TIMELINE -->
-    <div class="section" id="timeline">
+    <div class="section anim" id="timeline">
         <div class="section-label">Section 09</div>
         <h2 class="section-title">Timeline Implementasi & Target Project</h2>
 
         <div class="timeline">
             <!-- Fase 1 -->
-            <div class="timeline-item">
+            <div class="timeline-item anim">
                 <div class="timeline-dot"></div>
                 <div class="timeline-phase">Bulan 1</div>
                 <div class="timeline-title">Fase 1 — Perencanaan & Audit</div>
@@ -1205,7 +1224,7 @@ Pemasukan Masuk (dari klien)
             </div>
 
             <!-- Fase 2 -->
-            <div class="timeline-item">
+            <div class="timeline-item anim anim-d1">
                 <div class="timeline-dot"></div>
                 <div class="timeline-phase">Bulan 2–3</div>
                 <div class="timeline-title">Fase 2 — Implementasi</div>
@@ -1219,7 +1238,7 @@ Pemasukan Masuk (dari klien)
             </div>
 
             <!-- Fase 3 -->
-            <div class="timeline-item" style="padding-bottom:0">
+            <div class="timeline-item anim anim-d2" style="padding-bottom:0">
                 <div class="timeline-dot"></div>
                 <div class="timeline-phase">Bulan 4+</div>
                 <div class="timeline-title">Fase 3 — Evaluasi & Optimasi Berkelanjutan</div>
@@ -1230,7 +1249,7 @@ Pemasukan Masuk (dari klien)
     </div>
 
     <!-- 10. PENUTUP -->
-    <div class="section" id="penutup">
+    <div class="section anim" id="penutup">
         <div class="section-label">Section 10</div>
         <h2 class="section-title">Penutup</h2>
 
@@ -1264,7 +1283,7 @@ Pemasukan Masuk (dari klien)
     </div>
 
     <!-- LAMPIRAN A -->
-    <div class="section" id="lampiran">
+    <div class="section anim" id="lampiran">
         <div class="section-label">Lampiran</div>
         <h2 class="section-title">Lampiran A — To-Do Sebelum Penandatanganan</h2>
         <p>Bagian ini perlu diisi / diverifikasi sebelum perjanjian final ditandatangani:</p>
@@ -1299,6 +1318,13 @@ Pemasukan Masuk (dari klien)
             });
         });
     }
+
+    // Scroll animations — IntersectionObserver
+    const animEls = document.querySelectorAll('.anim, .anim-scale');
+    const animObs = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); animObs.unobserve(e.target); } });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    animEls.forEach(el => animObs.observe(el));
 
     // Active nav highlighting
     const sections = document.querySelectorAll('.section, .cover');
