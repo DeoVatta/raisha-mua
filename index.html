@@ -192,18 +192,16 @@
             padding: 0 40px;
         }
 
-        .nav-inner {
-            max-width: 900px;
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            height: 60px;
-            gap: 8px;
-            overflow-x: auto;
-            scrollbar-width: none;
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--gold);
+            font-size: 22px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
         }
-
-        .nav-inner::-webkit-scrollbar { display: none; }
 
         .nav-brand {
             font-family: 'Playfair Display', serif;
@@ -211,16 +209,15 @@
             color: var(--gold);
             font-weight: 600;
             white-space: nowrap;
-            margin-right: 20px;
             flex-shrink: 0;
         }
 
         .nav-link {
-            font-size: 12px;
+            font-size: 11px;
             letter-spacing: 1px;
-            color: rgba(255,255,255,0.6);
+            color: rgba(255,255,255,0.55);
             text-decoration: none;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
             white-space: nowrap;
             transition: all 0.2s;
@@ -230,6 +227,25 @@
         .nav-link:hover, .nav-link.active {
             color: var(--gold);
             background: rgba(201,168,76,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .nav { padding: 0 20px; }
+            .nav-toggle { display: flex; align-items: center; justify-content: center; }
+            .nav-inner { gap: 0; overflow: visible; }
+            .nav-brand { flex: 1; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 60px; left: 0; right: 0;
+                background: rgba(26,26,46,0.98);
+                flex-direction: column;
+                padding: 12px 20px 20px;
+                gap: 4px;
+                border-bottom: 1px solid rgba(201,168,76,0.15);
+            }
+            .nav-links.open { display: flex; }
+            .nav-link { padding: 10px 12px; border-radius: 6px; }
         }
 
         /* ==================== MAIN CONTENT ==================== */
@@ -691,18 +707,16 @@
 <!-- ==================== NAVIGATION ==================== -->
 <nav class="nav" id="nav">
     <div class="nav-inner">
-        <span class="nav-brand">Raisha MUA</span>
-        <a href="#executive-summary" class="nav-link">Ringkasan</a>
-        <a href="#profil" class="nav-link">Profil</a>
-        <a href="#analisis" class="nav-link">Analisis SWOT</a>
-        <a href="#solusi" class="nav-link">Solusi</a>
-        <a href="#scope" class="nav-link">Ruang Lingkup</a>
-        <a href="#mitra" class="nav-link">Kemitraan</a>
-        <a href="#revenue" class="nav-link">Revenue</a>
-        <a href="#market" class="nav-link">Market</a>
-        <a href="#timeline" class="nav-link">Timeline</a>
-        <a href="#penutup" class="nav-link">Penutup</a>
-        <a href="#lampiran" class="nav-link">Lampiran</a>
+        <a href="#cover" class="nav-brand">Raisha MUA</a>
+        <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
+        <div class="nav-links" id="navLinks">
+            <a href="#profil" class="nav-link">Profil</a>
+            <a href="#analisis" class="nav-link">SWOT</a>
+            <a href="#solusi" class="nav-link">Solusi</a>
+            <a href="#mitra" class="nav-link">Kemitraan</a>
+            <a href="#timeline" class="nav-link">Timeline</a>
+            <a href="#lampiran" class="nav-link">Lampiran</a>
+        </div>
     </div>
 </nav>
 
@@ -1061,10 +1075,8 @@
         <ul class="checklist">
             <li><div class="check-box"></div> <strong>Semua pemasukan masuk ke perusahaan</strong> — tidak ada pembayaran langsung antara klien ke individu</li>
             <li><div class="check-box"></div> <strong>Semua biaya operasional ditanggung perusahaan</strong> — termasuk biaya produksi, transport, marketing, dan overhead</li>
-            <li><div class="check-box"></div> <strong>Dea mendapatkan fee per project</strong> untuk setiap eksekusi MUA yang dilakukan</li>
-            <li><div class="check-box"></div> <strong>Deo mendapatkan fee per deliverable</strong> untuk setiap scope pekerjaan yang diselesaikan</li>
-            <li><div class="check-box"></div> <strong>Profit bersih setelah biaya</strong> dibagikan berdasarkan bobot kontribusi</li>
-            <li><div class="check-box"></div> <strong>Bobot Dea akan ditambahkan</strong> dengan total nilai asset yang dimilikinya — hasil final akan terlihat setelah audit asset</li>
+            <li><div class="check-box"></div> <strong>Pendapatan Deo & Dea</strong> — hanya dari bagi hasil profit % setiap bulan</li>
+            <li><div class="check-box"></div> <strong>Dea share</strong> akan ditambah dengan total nilai asset yang dimilikinya — hasil final setelah audit asset</li>
             <li><div class="check-box"></div> <strong>Cashflow perusahaan</strong> disimpan untuk memastikan operasional dan reinvestasi berjalan lancar</li>
         </ul>
 
@@ -1079,9 +1091,6 @@ Pemasukan Masuk (dari klien)
         │
         ├─── Biaya Operasional
         │   (produk, transport, dll.)
-        │
-        ├─── Fee Dea per Project MUA
-        ├─── Fee Deo per Deliverable
         │
         ▼
   ┌─────────────────────────────────────┐
@@ -1100,25 +1109,18 @@ Pemasukan Masuk (dari klien)
   └─────────────────────────────────────┘
         </pre>
 
-        <h3 class="section-subtitle">Fee per Project</h3>
+        <p><strong>Catatan:</strong> Total income menunggu perhitungan harga paket final. Estimasi target project per bulan dapat dilihat di section Timeline.</p>
+
+        <h3 class="section-subtitle">Pembagian Profit</h3>
         <table>
-            <thead><tr><th>Pihak</th><th>Scope</th><th>Fee</th></tr></thead>
+            <thead><tr><th>Pihak</th><th>Persentase</th></tr></thead>
             <tbody>
-                <tr><td><strong>Dea Rahajeng</strong></td><td>Per Eksekusi MUA (wedding, engagement, dll.)</td><td><em>Nominal akan ditentukan berdasarkan paket layanan</em></td></tr>
-                <tr><td><strong>Deo Vatta</strong></td><td>Per Deliverable Scope Work (website, marketing plan, dll.)</td><td><em>Nominal akan ditentukan per project</em></td></tr>
+                <tr><td>Deo Vatta (PIHAK PERTAMA)</td><td><strong>~55% dari profit bersih</strong></td></tr>
+                <tr><td>Dea Rahajeng (PIHAK KEDUA)</td><td><strong>~45% dari profit bersih + tambahan nilai asset</strong></td></tr>
             </tbody>
         </table>
 
-        <h3 class="section-subtitle">Pembagian Profit Bersih</h3>
-        <table>
-            <thead><tr><th>Pihak</th><th>Estimasi Bobot</th><th>Persentase</th></tr></thead>
-            <tbody>
-                <tr><td>Deo Vatta (PIHAK PERTAMA)</td><td>~55%</td><td><strong>~55% dari profit bersih</strong></td></tr>
-                <tr><td>Dea Rahajeng (PIHAK KEDUA)</td><td>~45%+</td><td><strong>~45% dari profit bersih + tambahan dari nilai asset</strong></td></tr>
-            </tbody>
-        </table>
-
-        <p><strong>Catatan:</strong> Persentase final Dea akan disesuaikan setelah hasil <strong>audit asset</strong> Raisha MUA. Nilai asset Dea (brand, portfolio, base klien, equipment) akan menambah persentase bagi hasilnya.</p>
+        <p><strong>Catatan:</strong> Persentase final Dea akan disesuaikan setelah hasil <strong>audit asset</strong> Raisha MUA.</p>
     </div>
 
     <!-- 8. MARKET FOCUS -->
@@ -1308,14 +1310,11 @@ Pemasukan Masuk (dari klien)
         <p>Bagian ini perlu diisi / diverifikasi sebelum perjanjian final ditandatangani:</p>
 
         <ul class="checklist">
-            <li><div class="check-box"></div><div><strong>Audit Asset Raisha MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Dokumentasi lengkap aset, brand value, base klien, equipment, dll. untuk menghitung persentase final.</span></div></li>
-            <li><div class="check-box"></div><div><strong>Nominal Fee per Project MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Kesepakatan fee Dea per eksekusi MUA per segmen (wedding, event, cosplay).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Nominal Fee per Deliverable Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Kesepakatan fee Deo per scope project (website, marketing plan, dll.).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Modal Kontribusi Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Jumlah modal yang akan diinvestasikan untuk operasional awal.</span></div></li>
-            <li><div class="check-box"></div><div><strong>Konfirmasi Persentase Pembagian Profit</strong><br><span style="font-size:12px;color:var(--text-light)">~55% Deo : ~45%+Dea (final setelah audit asset).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Market & Estimasi Project</strong><br><span style="font-size:12px;color:var(--text-light)">Validasi asumsi estimasi project per bulan dan harga per paket layanan.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Audit Asset Raisha MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Dokumentasi lengkap aset, brand value, base klien, equipment, dll.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Perhitungan Harga Paket Final</strong><br><span style="font-size:12px;color:var(--text-light)">Nominal paket per segmen (wedding, event, cosplay).</span></div></li>
+            <li><div class="check-box"></div><div><strong>Modal Kontribusi Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Jumlah modal yang diinvestasikan untuk operasional awal.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Konfirmasi Persentase</strong><br><span style="font-size:12px;color:var(--text-light)">~55% Deo : ~45%+ Dea (final setelah audit asset).</span></div></li>
             <li><div class="check-box"></div><div><strong>Durasi Perjanjian</strong><br><span style="font-size:12px;color:var(--text-light)">Jangka waktu cooperation (1 tahun, 2 tahun, dll.).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Klausul lain</strong><br><span style="font-size:12px;color:var(--text-light)">Jika ada yang perlu ditambahkan.</span></div></li>
         </ul>
     </div>
 
@@ -1341,9 +1340,25 @@ Pemasukan Masuk (dari klien)
 <button class="print-btn" onclick="window.print()" title="Print / Save as PDF">⬇</button>
 
 <script>
+    // Mobile nav toggle
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
+    if (navToggle) {
+        navToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('open');
+            navToggle.textContent = navLinks.classList.contains('open') ? '✕' : '☰';
+        });
+        navLinks.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('open');
+                navToggle.textContent = '☰';
+            });
+        });
+    }
+
     // Active nav highlighting
     const sections = document.querySelectorAll('.section, .cover');
-    const navLinks = document.querySelectorAll('.nav-link');
+    const allNavLinks = document.querySelectorAll('.nav-link');
 
     function updateActive() {
         let current = '';
@@ -1351,7 +1366,7 @@ Pemasukan Masuk (dari klien)
             const top = sec.getBoundingClientRect().top;
             if (top <= 120) current = sec.id;
         });
-        navLinks.forEach(link => {
+        allNavLinks.forEach(link => {
             link.classList.toggle('active', link.getAttribute('href') === '#' + current);
         });
     }
@@ -1359,8 +1374,8 @@ Pemasukan Masuk (dari klien)
     window.addEventListener('scroll', updateActive);
     updateActive();
 
-    // Smooth scroll for nav links
-    navLinks.forEach(link => {
+    // Smooth scroll
+    allNavLinks.forEach(link => {
         link.addEventListener('click', e => {
             e.preventDefault();
             const target = document.querySelector(link.getAttribute('href'));
