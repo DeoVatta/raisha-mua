@@ -63,6 +63,17 @@
         .cin-up.visible  { animation: cinematicFadeUp  0.9s  cubic-bezier(0.22, 1, 0.36, 1) forwards; }
         .cin-scale.visible { animation: softPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
+        /* Card sequential animation */
+        .card-seq {
+            opacity: 0;
+            transform: translateY(32px) scale(0.96);
+            filter: blur(8px);
+            transition: none;
+        }
+        .card-seq.visible {
+            animation: cinematicFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
         /* Stagger delays */
         .d0  { animation-delay: 0.0s; }
         .d1  { animation-delay: 0.15s; }
@@ -484,12 +495,12 @@
         <h3 class="section-subtitle cin-up d4">6 Area Perbaikan</h3>
 
         <div class="cards">
-            <div class="card cin-up d5"><div class="card-num">01</div><div class="card-title">Arsitektur Bisnis</div><div class="card-desc">Mengatur ulang flow bisnis: Awareness → Selling Conversion → Aftersales</div></div>
-            <div class="card cin-up d6"><div class="card-num">02</div><div class="card-title">Sistem Penawaran</div><div class="card-desc">Paket dan sistem pembayaran yang lebih menarik & kompetitif</div></div>
-            <div class="card cin-up d7"><div class="card-num">03</div><div class="card-title">Marketing Plan</div><div class="card-desc">Strategi marketing agar brand lebih dikenal dan menjangkau pasar luas</div></div>
-            <div class="card cin-up d8"><div class="card-num">04</div><div class="card-title">Brand Positioning</div><div class="card-desc">Menentukan posisi Raisha MUA di pasar agar lebih menonjol</div></div>
-            <div class="card cin-up d9"><div class="card-num">05</div><div class="card-title">Website</div><div class="card-desc">Company Profile, Online Calendar, Testimonial & Booking Online</div></div>
-            <div class="card cin-up d10"><div class="card-num">06</div><div class="card-title">Event Online & Offline</div><div class="card-desc">Meningkatkan kontribusi dan mendapatkan relasi lebih besar</div></div>
+            <div class="card card-seq" data-idx="0"><div class="card-num">01</div><div class="card-title">Arsitektur Bisnis</div><div class="card-desc">Mengatur ulang flow bisnis: Awareness → Selling Conversion → Aftersales</div></div>
+            <div class="card card-seq" data-idx="1"><div class="card-num">02</div><div class="card-title">Sistem Penawaran</div><div class="card-desc">Paket dan sistem pembayaran yang lebih menarik & kompetitif</div></div>
+            <div class="card card-seq" data-idx="2"><div class="card-num">03</div><div class="card-title">Marketing Plan</div><div class="card-desc">Strategi marketing agar brand lebih dikenal dan menjangkau pasar luas</div></div>
+            <div class="card card-seq" data-idx="3"><div class="card-num">04</div><div class="card-title">Brand Positioning</div><div class="card-desc">Menentukan posisi Raisha MUA di pasar agar lebih menonjol</div></div>
+            <div class="card card-seq" data-idx="4"><div class="card-num">05</div><div class="card-title">Website</div><div class="card-desc">Company Profile, Online Calendar, Testimonial & Booking Online</div></div>
+            <div class="card card-seq" data-idx="5"><div class="card-num">06</div><div class="card-title">Event Online & Offline</div><div class="card-desc">Meningkatkan kontribusi dan mendapatkan relasi lebih besar</div></div>
         </div>
     </div>
 
@@ -791,17 +802,96 @@ if (navToggle) {
 const coverEls = document.querySelectorAll('#cover .cin');
 coverEls.forEach(el => el.classList.add('visible'));
 
-// ── Scroll IntersectionObserver for all cinematic elements ──
-const cinEls = document.querySelectorAll('.cin, .cin-blur, .cin-left, .cin-up, .cin-scale, .cin-type');
-const cinObs = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-        if (e.isIntersecting) {
-            e.target.classList.add('visible');
-            cinObs.unobserve(e.target);
-        }
+// ── Generic cinematic observer (replay on scroll up — removes .visible when out of view) ──
+function observeCin(selector, threshold = 0.05) {
+    const els = document.querySelectorAll(selector);
+    els.forEach(el => {
+        const obs = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('visible');
+                } else {
+                    e.target.classList.remove('visible');
+                }
+            });
+        }, { threshold, rootMargin: '0px 0px -30px 0px' });
+        obs.observe(el);
     });
-}, { threshold: 0.05, rootMargin: '0px 0px -30px 0px' });
-cinEls.forEach(el => cinObs.observe(el));
+}
+
+// Apply to all base cinematic types
+observeCin('.cin-up');
+observeCin('.cin-blur');
+observeCin('.cin-left');
+observeCin('.cin-scale');
+observeCin('.cin');
+
+// ── Section 4 cards: sequential one-by-one via increasing threshold ──
+const cardSeqs = document.querySelectorAll('.card-seq');
+cardSeqs.forEach((card, i) => {
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) {
+                setTimeout(() => {
+                    card.classList.add('visible');
+                }, i * 160);
+            } else {
+                card.classList.remove('visible');
+            }
+        });
+    }, { threshold: 0.02, rootMargin: '0px 0px -10px 0px' });
+    obs.observe(card);
+});
+
+// ── Scope items, timeline items: also replay on scroll up ──
+document.querySelectorAll('.scope-item, .timeline-item').forEach(el => {
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) el.classList.add('visible');
+            else el.classList.remove('visible');
+        });
+    }, { threshold: 0.05, rootMargin: '0px 0px -20px 0px' });
+    obs.observe(el);
+});
+
+// ── Section-level: title, subtitle, tables, blockquotes replay on scroll ──
+document.querySelectorAll('.section-title, .section-subtitle, blockquote, table, pre, .section-label').forEach(el => {
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) el.classList.add('visible');
+            else el.classList.remove('visible');
+        });
+    }, { threshold: 0.08, rootMargin: '0px 0px -20px 0px' });
+    obs.observe(el);
+});
+
+// ── Profile rows inside profile-card: sequential reveal ──
+const profileRows = document.querySelectorAll('.profile-row');
+profileRows.forEach((row, i) => {
+    row.style.opacity = '0';
+    row.style.transform = 'translateY(10px)';
+    row.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+    row.style.transitionDelay = (i * 0.08) + 's';
+});
+const profileCard = document.querySelector('.profile-card');
+if (profileCard) {
+    const obs = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting) {
+                profileRows.forEach(row => {
+                    row.style.opacity = '1';
+                    row.style.transform = 'translateY(0)';
+                });
+            } else {
+                profileRows.forEach(row => {
+                    row.style.opacity = '0';
+                    row.style.transform = 'translateY(10px)';
+                });
+            }
+        });
+    }, { threshold: 0.2 });
+    obs.observe(profileCard);
+}
 
 // ── Active nav highlight ──
 const sections = document.querySelectorAll('.section, .cover');
