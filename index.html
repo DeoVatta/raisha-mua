@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Proposal Kerjasama Bisnis — Raisha MUA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
             --gold: #C9A84C;
@@ -20,7 +20,11 @@
             --accent: #8B5E3C;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
@@ -30,43 +34,7 @@
             font-size: 15px;
         }
 
-        /* ===== ANIMATIONS ===== */
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes scaleIn {
-            from { opacity: 0; transform: scale(0.92); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes rotateSlow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .animate-on-scroll {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.7s ease, transform 0.7s ease;
-        }
-        .animate-on-scroll.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .animate-delay-1 { transition-delay: 0.1s; }
-        .animate-delay-2 { transition-delay: 0.2s; }
-        .animate-delay-3 { transition-delay: 0.3s; }
-        .animate-delay-4 { transition-delay: 0.4s; }
-
-        /* ===== COVER ===== */
+        /* ==================== COVER PAGE ==================== */
         .cover {
             min-height: 100vh;
             display: flex;
@@ -78,412 +46,633 @@
             color: var(--white);
             position: relative;
             overflow: hidden;
-            padding: 60px 24px;
+            padding: 60px 40px;
         }
+
         .cover::before {
             content: '';
             position: absolute;
-            top: -50%; left: -50%;
-            width: 200%; height: 200%;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
             background: radial-gradient(ellipse at center, rgba(201,168,76,0.08) 0%, transparent 70%);
             animation: rotateSlow 20s linear infinite;
         }
-        .cover-ornament-top, .cover-ornament-bottom {
-            width: 80px; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--gold), transparent);
-            position: relative; z-index: 1;
-        }
-        .cover-ornament-top { margin-bottom: 40px; }
-        .cover-ornament-bottom { margin-top: 40px; }
-        .cover-logo {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(42px, 10vw, 72px);
-            font-weight: 700;
-            letter-spacing: clamp(4px, 1.5vw, 8px);
-            color: var(--gold);
-            margin-bottom: 8px; position: relative; z-index: 1;
-        }
-        .cover-subtitle {
-            font-size: 12px; letter-spacing: 5px; text-transform: uppercase;
-            color: var(--gold-light); opacity: 0.8; margin-bottom: 50px; position: relative; z-index: 1;
-        }
-        .cover-divider {
-            width: 1px; height: 60px;
-            background: linear-gradient(to bottom, transparent, var(--gold), transparent);
-            margin-bottom: 30px;
-        }
-        .cover-title {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(20px, 5vw, 28px); font-weight: 400;
-            color: var(--white); margin-bottom: 10px; position: relative; z-index: 1;
-        }
-        .cover-line {
-            width: 60px; height: 1px; background: var(--gold);
-            margin: 16px auto; opacity: 0.5;
-        }
-        .cover-from, .cover-to-label {
-            font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
-            color: var(--gold-light); opacity: 0.6; margin-bottom: 6px; position: relative; z-index: 1;
-        }
-        .cover-from { margin-top: 40px; }
-        .cover-name, .cover-to-name {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(15px, 3vw, 18px); color: var(--white);
-            margin-bottom: 30px; position: relative; z-index: 1;
-        }
-        .cover-date {
-            font-size: 12px; color: var(--gold-light);
-            opacity: 0.7; letter-spacing: 2px; position: relative; z-index: 1;
+
+        @keyframes rotateSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
-        /* ===== NAVIGATION ===== */
+        .cover-ornament-top {
+            width: 80px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            margin-bottom: 40px;
+        }
+
+        .cover-logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 8px;
+            color: var(--gold);
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-subtitle {
+            font-size: 13px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: var(--gold-light);
+            opacity: 0.8;
+            margin-bottom: 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-divider {
+            width: 1px;
+            height: 60px;
+            background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+            margin-bottom: 40px;
+        }
+
+        .cover-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 400;
+            color: var(--white);
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-line {
+            width: 60px;
+            height: 1px;
+            background: var(--gold);
+            margin: 20px auto;
+            opacity: 0.5;
+        }
+
+        .cover-from {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold-light);
+            opacity: 0.6;
+            margin-top: 50px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: var(--white);
+            margin-bottom: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-to-label {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold-light);
+            opacity: 0.6;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-to-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: var(--white);
+            margin-bottom: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-date {
+            font-size: 13px;
+            color: var(--gold-light);
+            opacity: 0.7;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cover-ornament-bottom {
+            width: 80px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            margin-top: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ==================== NAV ==================== */
         .nav {
             position: fixed;
-            top: 0; left: 0; right: 0;
-            background: rgba(26,26,46,0.97);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(201,168,76,0.12);
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26,26,46,0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(201,168,76,0.15);
             z-index: 1000;
-            padding: 0 20px;
+            padding: 0 40px;
         }
+
         .nav-inner {
             max-width: 900px;
             margin: 0 auto;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            height: 56px;
+            height: 60px;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
         }
+
+        .nav-inner::-webkit-scrollbar { display: none; }
+
         .nav-brand {
             font-family: 'Playfair Display', serif;
-            font-size: 15px; color: var(--gold);
-            font-weight: 600; flex-shrink: 0;
-            text-decoration: none;
+            font-size: 16px;
+            color: var(--gold);
+            font-weight: 600;
+            white-space: nowrap;
+            margin-right: 20px;
+            flex-shrink: 0;
         }
-        .nav-toggle {
-            display: none;
-            background: none; border: none;
-            color: var(--gold); font-size: 24px;
-            cursor: pointer; padding: 4px;
-            line-height: 1;
-        }
-        .nav-links {
-            display: flex;
-            gap: 4px;
-            list-style: none;
-        }
+
         .nav-link {
-            font-size: 11px; letter-spacing: 1px;
-            color: rgba(255,255,255,0.55);
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.6);
             text-decoration: none;
-            padding: 6px 10px; border-radius: 4px;
+            padding: 6px 12px;
+            border-radius: 4px;
             white-space: nowrap;
             transition: all 0.2s;
             text-transform: uppercase;
         }
+
         .nav-link:hover, .nav-link.active {
             color: var(--gold);
-            background: rgba(201,168,76,0.12);
+            background: rgba(201,168,76,0.1);
         }
 
-        @media (max-width: 768px) {
-            .nav-toggle { display: flex; align-items: center; justify-content: center; }
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 56px; left: 0; right: 0;
-                background: rgba(26,26,46,0.98);
-                flex-direction: column;
-                padding: 12px 20px 20px;
-                gap: 4px;
-                border-bottom: 1px solid rgba(201,168,76,0.15);
-                animation: slideDown 0.25s ease;
-            }
-            .nav-links.open { display: flex; }
-            .nav-link { padding: 10px 12px; border-radius: 6px; }
-        }
-
-        /* ===== CONTENT ===== */
+        /* ==================== MAIN CONTENT ==================== */
         .doc-page {
             max-width: 800px;
             margin: 0 auto;
-            padding: 80px 24px 100px;
+            padding: 80px 40px 120px;
         }
+
         .section {
-            margin-bottom: 56px;
-            animation: fadeInUp 0.7s ease both;
+            margin-bottom: 60px;
         }
+
         .section-label {
-            font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
-            color: var(--gold); margin-bottom: 14px;
-            display: flex; align-items: center; gap: 12px;
+            font-size: 11px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
+
         .section-label::after {
-            content: ''; flex: 1; height: 1px; background: var(--border);
-        }
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(24px, 5vw, 32px); font-weight: 600;
-            color: var(--dark); margin-bottom: 24px; line-height: 1.3;
-        }
-        .section-subtitle {
-            font-family: 'Playfair Display', serif;
-            font-size: clamp(18px, 4vw, 22px); font-weight: 600;
-            color: var(--dark); margin-bottom: 16px; margin-top: 36px;
-            padding-bottom: 8px; border-bottom: 1px solid var(--border);
-        }
-        .section-subtitle2 {
-            font-family: 'Playfair Display', serif;
-            font-size: 17px; font-weight: 600;
-            color: var(--dark); margin-bottom: 14px; margin-top: 24px;
-        }
-        p { margin-bottom: 14px; color: var(--text); }
-        blockquote {
-            background: linear-gradient(135deg, rgba(201,168,76,0.07), rgba(201,168,76,0.02));
-            border-left: 3px solid var(--gold);
-            padding: 18px 22px; margin: 20px 0;
-            font-family: 'Playfair Display', serif;
-            font-size: 17px; color: var(--dark);
-            font-style: italic; line-height: 1.6;
-            border-radius: 0 8px 8px 0;
-        }
-
-        /* ===== TABLES ===== */
-        table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 14px; }
-        th {
-            background: var(--dark); color: var(--gold);
-            padding: 10px 14px; text-align: left;
-            font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
-        }
-        td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
-        tr:nth-child(even) td { background: rgba(0,0,0,0.018); }
-        tr:last-child td { border-bottom: none; }
-        td:first-child { font-weight: 600; color: var(--dark); }
-
-        /* ===== CARDS ===== */
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 14px; margin: 16px 0 24px;
-        }
-        .card {
-            background: var(--white); border: 1px solid var(--border);
-            border-radius: 8px; padding: 18px;
-            transition: all 0.25s ease;
-        }
-        .card:hover {
-            border-color: var(--gold);
-            box-shadow: 0 4px 20px rgba(201,168,76,0.12);
-            transform: translateY(-2px);
-        }
-        .card-num {
-            font-family: 'Playfair Display', serif;
-            font-size: 26px; font-weight: 700;
-            color: var(--gold); opacity: 0.4; margin-bottom: 6px;
-        }
-        .card-title { font-weight: 600; font-size: 13px; color: var(--dark); margin-bottom: 5px; }
-        .card-desc { font-size: 12px; color: var(--text-light); line-height: 1.5; }
-
-        /* ===== MARKET PILLS ===== */
-        .market-pills {
-            display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 24px;
-        }
-        .pill {
-            display: flex; align-items: center; gap: 8px;
-            background: var(--white); border: 1px solid var(--border);
-            border-radius: 50px; padding: 8px 16px;
-            font-size: 13px; color: var(--dark); font-weight: 500;
-            transition: all 0.2s;
-        }
-        .pill:hover { border-color: var(--gold); background: rgba(201,168,76,0.05); }
-        .pill-icon { font-size: 16px; }
-        .pill-tag {
-            font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-            padding: 2px 8px; border-radius: 20px; font-weight: 600;
-        }
-        .pill-tag.primary { background: rgba(201,168,76,0.2); color: var(--accent); }
-        .pill-tag.secondary { background: rgba(139,94,60,0.12); color: var(--accent); }
-        .pill-tag.potential { background: rgba(100,100,180,0.12); color: #5555aa; }
-
-        /* ===== TARGET BOX ===== */
-        .target-box {
-            background: linear-gradient(135deg, var(--dark), var(--dark2));
-            border-radius: 12px; padding: 24px; margin: 16px 0 24px;
-            color: var(--white);
-        }
-        .target-phase {
-            font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
-            color: var(--gold); margin-bottom: 6px;
-        }
-        .target-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 20px; font-weight: 600;
-            color: var(--white); margin-bottom: 12px;
-        }
-        .target-desc { font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 14px; }
-        .target-stats {
-            display: flex; gap: 20px; flex-wrap: wrap;
-        }
-        .stat {
-            background: rgba(201,168,76,0.12);
-            border: 1px solid rgba(201,168,76,0.2);
-            border-radius: 8px; padding: 10px 16px; min-width: 100px;
-        }
-        .stat-num {
-            font-family: 'Playfair Display', serif;
-            font-size: 22px; font-weight: 700; color: var(--gold);
-        }
-        .stat-label { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px; }
-
-        /* ===== FLOW BOX ===== */
-        .flow-box {
-            background: var(--dark); border-radius: 12px;
-            padding: 24px; margin: 20px 0;
-            font-family: 'Fira Code', monospace; font-size: 12px;
-            color: var(--gold-light); line-height: 1.8; overflow-x: auto;
-            white-space: pre;
-        }
-
-        /* ===== TIMELINE ===== */
-        .timeline { position: relative; margin: 16px 0 24px; }
-        .timeline::before {
-            content: ''; position: absolute;
-            left: 18px; top: 0; bottom: 0; width: 1px;
+            content: '';
+            flex: 1;
+            height: 1px;
             background: var(--border);
         }
-        .timeline-item { position: relative; padding-left: 52px; padding-bottom: 28px; }
-        .timeline-item:last-child { padding-bottom: 0; }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 30px;
+            line-height: 1.3;
+        }
+
+        .section-subtitle {
+            font-family: 'Playfair Display', serif;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 20px;
+            margin-top: 40px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-subtitle2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 16px;
+            margin-top: 30px;
+        }
+
+        p {
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+
+        blockquote {
+            background: linear-gradient(135deg, rgba(201,168,76,0.06), rgba(201,168,76,0.02));
+            border-left: 3px solid var(--gold);
+            padding: 20px 24px;
+            margin: 24px 0;
+            font-family: 'Playfair Display', serif;
+            font-size: 18px;
+            color: var(--dark);
+            font-style: italic;
+            line-height: 1.6;
+        }
+
+        /* ==================== TABLES ==================== */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0 30px;
+            font-size: 14px;
+        }
+
+        th {
+            background: var(--dark);
+            color: var(--gold);
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(0,0,0,0.015);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ==================== CARDS ==================== */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin: 20px 0 30px;
+        }
+
+        .card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .card:hover {
+            border-color: var(--gold);
+            box-shadow: 0 4px 20px rgba(201,168,76,0.1);
+        }
+
+        .card-num {
+            font-family: 'Playfair Display', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--gold);
+            opacity: 0.4;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--dark);
+            margin-bottom: 6px;
+        }
+
+        .card-desc {
+            font-size: 13px;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        /* ==================== TIMELINE ==================== */
+        .timeline {
+            position: relative;
+            margin: 20px 0 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-left: 56px;
+            padding-bottom: 30px;
+        }
+
         .timeline-dot {
-            position: absolute; left: 12px; top: 4px;
-            width: 14px; height: 14px; border-radius: 50%;
-            background: var(--gold); border: 3px solid var(--bg);
+            position: absolute;
+            left: 14px;
+            top: 4px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--gold);
+            border: 3px solid var(--bg);
             box-shadow: 0 0 0 1px var(--gold);
         }
+
         .timeline-phase {
-            font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-            color: var(--gold); margin-bottom: 4px;
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 4px;
         }
+
         .timeline-title {
             font-family: 'Playfair Display', serif;
-            font-size: 17px; font-weight: 600; color: var(--dark); margin-bottom: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 12px;
         }
+
         .timeline-week {
-            display: flex; align-items: flex-start; gap: 10px;
-            margin-bottom: 6px; font-size: 13px;
-        }
-        .timeline-week-num {
-            background: var(--dark); color: var(--gold);
-            font-size: 10px; font-weight: 600;
-            padding: 2px 8px; border-radius: 10px; flex-shrink: 0; margin-top: 2px;
-        }
-
-        /* ===== SIGNATURES ===== */
-        .signatures {
-            display: grid; grid-template-columns: 1fr 1fr;
-            gap: 30px; margin: 48px 0 32px;
-        }
-        .signature-box { text-align: center; }
-        .signature-line { width: 100%; height: 1px; background: var(--text); margin-bottom: 6px; }
-        .signature-label {
-            font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-            color: var(--text-light); margin-bottom: 18px;
-        }
-        .signature-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 15px; font-weight: 600; color: var(--dark);
-        }
-
-        /* ===== CHECKLIST ===== */
-        .checklist { list-style: none; margin: 14px 0; }
-        .checklist li {
-            display: flex; align-items: flex-start; gap: 10px;
-            padding: 8px 0; border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 8px;
             font-size: 13px;
         }
+
+        .timeline-week-num {
+            background: var(--dark);
+            color: var(--gold);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        /* ==================== SIGNATURE ==================== */
+        .signatures {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin: 60px 0 40px;
+        }
+
+        .signature-box {
+            text-align: center;
+        }
+
+        .signature-line {
+            width: 100%;
+            height: 1px;
+            background: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .signature-label {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 20px;
+        }
+
+        .signature-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        /* ==================== CHECKLIST ==================== */
+        .checklist {
+            list-style: none;
+            margin: 16px 0;
+        }
+
+        .checklist li {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
         .check-box {
-            width: 16px; height: 16px; border: 1.5px solid var(--border);
-            border-radius: 3px; flex-shrink: 0; margin-top: 2px;
+            width: 18px;
+            height: 18px;
+            border: 1.5px solid var(--border);
+            border-radius: 3px;
+            flex-shrink: 0;
+            margin-top: 2px;
         }
 
-        /* ===== REVISION TABLE ===== */
-        .rev-table td:first-child { white-space: nowrap; font-size: 12px; color: var(--text-light); }
+        /* ==================== CODE/FORMULA ==================== */
+        pre {
+            background: var(--dark);
+            color: var(--gold-light);
+            padding: 20px 24px;
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
 
-        /* ===== PRINT BUTTON ===== */
+        /* ==================== REVISION TABLE ==================== */
+        .rev-table td:first-child {
+            white-space: nowrap;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        /* ==================== PRINT BUTTON ==================== */
         .print-btn {
-            position: fixed; bottom: 24px; right: 24px;
-            width: 48px; height: 48px;
-            background: var(--dark); color: var(--gold);
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 52px;
+            height: 52px;
+            background: var(--dark);
+            color: var(--gold);
             border: 1px solid rgba(201,168,76,0.3);
-            border-radius: 50%; cursor: pointer;
-            font-size: 18px; display: flex;
-            align-items: center; justify-content: center;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             transition: all 0.2s;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 999;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 999;
         }
-        .print-btn:hover { background: var(--gold); color: var(--dark); transform: scale(1.08); }
 
-        /* ===== PROFILE CARD ===== */
+        .print-btn:hover {
+            background: var(--gold);
+            color: var(--dark);
+            transform: scale(1.1);
+        }
+
+        /* ==================== PRINT STYLES ==================== */
+        @media print {
+            .nav, .print-btn { display: none !important; }
+            .cover {
+                min-height: auto;
+                page-break-after: always;
+                padding: 60px;
+            }
+            .doc-page { padding: 60px; }
+            .section { page-break-inside: avoid; }
+        }
+
+        /* ==================== RESPONSIVE ==================== */
+        @media (max-width: 768px) {
+            .cover { padding: 40px 24px; }
+            .cover-logo { font-size: 48px; letter-spacing: 4px; }
+            .cover-title { font-size: 22px; }
+            .doc-page { padding: 80px 20px 80px; }
+            .section-title { font-size: 26px; }
+            .signatures { grid-template-columns: 1fr; gap: 30px; }
+            .nav { padding: 0 16px; }
+            .cards { grid-template-columns: 1fr; }
+        }
+
+        /* ==================== PROFILE SECTION ==================== */
         .profile-card {
-            background: var(--white); border: 1px solid var(--border);
-            border-radius: 12px; padding: 24px; margin: 16px 0;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
         }
+
         .profile-row {
-            display: grid; grid-template-columns: 130px 1fr;
-            gap: 8px; padding: 8px 0;
-            border-bottom: 1px solid var(--border); font-size: 13px;
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
         }
+
         .profile-row:last-child { border-bottom: none; }
-        .profile-key { color: var(--text-light); font-size: 11px; }
+        .profile-key { color: var(--text-light); font-size: 12px; padding-top: 2px; }
         .profile-val { color: var(--dark); font-weight: 500; }
 
-        /* ===== SCOPE ITEM ===== */
+        /* ==================== SCOPE ITEMS ==================== */
         .scope-item {
-            background: var(--white); border: 1px solid var(--border);
-            border-radius: 8px; padding: 20px; margin-bottom: 14px;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
         }
-        .scope-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+
+        .scope-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
         .scope-icon {
-            width: 40px; height: 40px;
+            width: 44px;
+            height: 44px;
             background: linear-gradient(135deg, var(--gold), var(--accent));
-            border-radius: 10px; display: flex;
-            align-items: center; justify-content: center;
-            font-size: 18px; flex-shrink: 0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
         }
+
         .scope-icon-title {
             font-family: 'Playfair Display', serif;
-            font-size: 17px; font-weight: 600; color: var(--dark);
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--dark);
         }
-        .scope-icon-sub { font-size: 12px; color: var(--text-light); }
-        .deliverable-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+        .scope-icon-sub {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .deliverable-list {
+            list-style: none;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
         .deliverable-list li {
-            font-size: 12px; padding: 4px 0 4px 18px; position: relative; color: var(--text);
-        }
-        .deliverable-list li::before { content: '✓'; position: absolute; left: 0; color: var(--gold); font-weight: 700; }
-
-        /* ===== PRINT ===== */
-        @media print {
-            .nav, .print-btn, .nav-toggle { display: none !important; }
-            .cover { min-height: auto; page-break-after: always; padding: 60px; }
-            .doc-page { padding: 60px; }
-            .section { page-break-inside: avoid; animation: none !important; opacity: 1 !important; }
+            font-size: 13px;
+            padding: 6px 0 6px 20px;
+            position: relative;
+            color: var(--text);
         }
 
-        /* ===== RESPONSIVE ===== */
+        .deliverable-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
         @media (max-width: 600px) {
-            .cards { grid-template-columns: 1fr; }
-            .signatures { grid-template-columns: 1fr; gap: 24px; }
             .deliverable-list { grid-template-columns: 1fr; }
             .profile-row { grid-template-columns: 1fr; }
-            .target-stats { flex-direction: column; }
-            .flow-box { font-size: 10px; padding: 16px; }
-            .scope-item { padding: 16px; }
         }
     </style>
 </head>
 <body>
 
-<!-- ===== COVER ===== -->
+<!-- ==================== COVER PAGE ==================== -->
 <div class="cover" id="cover">
     <div class="cover-ornament-top"></div>
     <div class="cover-logo">RAISHA MUA</div>
@@ -499,265 +688,602 @@
     <div class="cover-ornament-bottom"></div>
 </div>
 
-<!-- ===== NAVIGATION ===== -->
+<!-- ==================== NAVIGATION ==================== -->
 <nav class="nav" id="nav">
     <div class="nav-inner">
-        <a href="#cover" class="nav-brand">Raisha MUA</a>
-        <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
-        <ul class="nav-links" id="navLinks">
-            <li><a href="#profil" class="nav-link">Profil</a></li>
-            <li><a href="#analisis" class="nav-link">SWOT</a></li>
-            <li><a href="#solusi" class="nav-link">Solusi</a></li>
-            <li><a href="#mitra" class="nav-link">Kemitraan</a></li>
-            <li><a href="#timeline" class="nav-link">Timeline</a></li>
-            <li><a href="#lampiran" class="nav-link">Lampiran</a></li>
-        </ul>
+        <span class="nav-brand">Raisha MUA</span>
+        <a href="#executive-summary" class="nav-link">Ringkasan</a>
+        <a href="#profil" class="nav-link">Profil</a>
+        <a href="#analisis" class="nav-link">Analisis SWOT</a>
+        <a href="#solusi" class="nav-link">Solusi</a>
+        <a href="#scope" class="nav-link">Ruang Lingkup</a>
+        <a href="#mitra" class="nav-link">Kemitraan</a>
+        <a href="#revenue" class="nav-link">Revenue</a>
+        <a href="#market" class="nav-link">Market</a>
+        <a href="#timeline" class="nav-link">Timeline</a>
+        <a href="#penutup" class="nav-link">Penutup</a>
+        <a href="#lampiran" class="nav-link">Lampiran</a>
     </div>
 </nav>
 
-<!-- ===== CONTENT ===== -->
+<!-- ==================== CONTENT ==================== -->
 <div class="doc-page">
 
-    <!-- SECTION 01: PROFIL -->
+    <!-- 1. EXECUTIVE SUMMARY -->
+    <div class="section" id="executive-summary">
+        <div class="section-label">Section 01</div>
+        <h2 class="section-title">Executive Summary</h2>
+
+        <p>Raisha MUA adalah usaha jasa Make-Up Artist yang telah memiliki brand aktif dan tenaga MUA yang kompeten. Meskipun demikian, operasional bisnis saat ini masih berjalan secara tradisional dan belum memiliki sistem yang terstruktur dalam hal marketing, penjualan, serta pengelolaan customer journey.</p>
+
+        <p><strong>Deo Vatta Taufik</strong> mengajukan diri sebagai mitra bisnis untuk membantu meningkatkan omset Raisha MUA melalui penataan ulang arsitektur bisnis, marketing plan yang sistematis, serta implementasi sistem penjualan dan pembayaran yang lebih modern.</p>
+
+        <blockquote>
+            Kerjasama ini didasarkan pada prinsip <strong>setara dan transparan</strong> — pembagian revenue dihitung berdasarkan perbandingan total asset Raisha MUA saat ini dengan modal yang akan dikontribusikan oleh Deo, sehingga kedua belah pihak mendapatkan keuntungan yang proporsional.
+        </blockquote>
+    </div>
+
+    <!-- 2. PROFIL -->
     <div class="section" id="profil">
-        <div class="section-label">01 — Profil</div>
+        <div class="section-label">Section 02</div>
         <h2 class="section-title">Profil Raisha MUA</h2>
 
-        <div class="profile-card animate-on-scroll">
-            <div class="profile-row"><span class="profile-key">Nama Usaha</span><span class="profile-val">Raisha MUA</span></div>
-            <div class="profile-row"><span class="profile-key">Bidang</span><span class="profile-val">Jasa Make-Up Artist & Tata Rias</span></div>
-            <div class="profile-row"><span class="profile-key">Pemilik</span><span class="profile-val">Dea Rahajeng Taufik</span></div>
-            <div class="profile-row"><span class="profile-key">Lokasi</span><span class="profile-val">Graha Pandawa 2 Banjarejo, Kab Kendal</span></div>
-            <div class="profile-row"><span class="profile-key">Status</span><span class="profile-val">Sudah berjalan dan aktif</span></div>
-            <div class="profile-row"><span class="profile-key">SDM</span><span class="profile-val">MUA kompeten, berpengalaman, kemampuan On-Cam</span></div>
+        <div class="profile-card">
+            <div class="profile-row">
+                <span class="profile-key">Nama Usaha</span>
+                <span class="profile-val">Raisha MUA</span>
+            </div>
+            <div class="profile-row">
+                <span class="profile-key">Bidang Usaha</span>
+                <span class="profile-val">Jasa Make-Up Artist & Tata Rias</span>
+            </div>
+            <div class="profile-row">
+                <span class="profile-key">Pemilik</span>
+                <span class="profile-val">Dea Rahajeng Taufik</span>
+            </div>
+            <div class="profile-row">
+                <span class="profile-key">Lokasi</span>
+                <span class="profile-val">Graha Pandawa 2 Banjarejo, Kab Kendal</span>
+            </div>
+            <div class="profile-row">
+                <span class="profile-key">Status</span>
+                <span class="profile-val">Sudah berjalan dan aktif</span>
+            </div>
+            <div class="profile-row">
+                <span class="profile-key">SDM</span>
+                <span class="profile-val">Memiliki MUA yang kompeten, terbukti memiliki pengalaman kerja yang baik, dan berkemampuan On-Cam</span>
+            </div>
         </div>
     </div>
 
-    <!-- SECTION 02: SWOT -->
+    <!-- 3. ANALISIS SWOT -->
     <div class="section" id="analisis">
-        <div class="section-label">02 — Analisis</div>
-        <h2 class="section-title">Kondisi Saat Ini & SWOT</h2>
+        <div class="section-label">Section 03</div>
+        <h2 class="section-title">Kondisi Saat Ini & Analisis SWOT</h2>
 
-        <div class="cards animate-on-scroll">
-            <div class="card">
-                <div class="card-num">S</div>
-                <div class="card-title">Strengths</div>
-                <div class="card-desc">Brand pondasi mumpuni, MUA kompeten & berpengalaman, kemampuan On-Cam</div>
-            </div>
-            <div class="card">
-                <div class="card-num">W</div>
-                <div class="card-title">Weaknesses</div>
-                <div class="card-desc">Belum ada sistem terstruktur, belum ada marketing plan sistematis, belum ada positioning jelas, model bisnis tradisional</div>
-            </div>
-            <div class="card">
-                <div class="card-num">O</div>
-                <div class="card-title">Opportunities</div>
-                <div class="card-desc">Brand berpotensi naik dengan positioning tepat, bisa expand kategori beyond wedding, maksimalisasi relasi & internet</div>
-            </div>
-            <div class="card">
-                <div class="card-num">T</div>
-                <div class="card-title">Threats</div>
-                <div class="card-desc">Awareness menurun pasca-hiatus, kompetitor aktif di internet, sulit ubah positioning brand lama</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- SECTION 03: SOLUSI -->
-    <div class="section" id="solusi">
-        <div class="section-label">03 — Solusi</div>
-        <h2 class="section-title">Rencana Kerjasama</h2>
-        <p>Penataan arsitektur bisnis, marketing sistem, dan digital presence secara profesional untuk meningkatkan omset Raisha MUA secara signifikan.</p>
-
-        <div class="cards animate-on-scroll">
-            <div class="card"><div class="card-num">01</div><div class="card-title">Arsitektur Bisnis</div><div class="card-desc">Flow: Awareness → Selling → Aftersales</div></div>
-            <div class="card"><div class="card-num">02</div><div class="card-title">Sistem Penawaran</div><div class="card-desc">Paket layanan & pembayaran menarik</div></div>
-            <div class="card"><div class="card-num">03</div><div class="card-title">Marketing Plan</div><div class="card-desc">Strategi marketing & brand positioning</div></div>
-            <div class="card"><div class="card-num">04</div><div class="card-title">Website</div><div class="card-desc">Company Profile, Booking Online, Calendar</div></div>
-            <div class="card"><div class="card-num">05</div><div class="card-title">Content Plan</div><div class="card-desc">Strategi & guideline produksi konten</div></div>
-            <div class="card"><div class="card-num">06</div><div class="card-title">Event Planning</div><div class="card-desc">Cari, daftarkan, buat event untuk Dea</div></div>
-            <div class="card"><div class="card-num">07</div><div class="card-title">Cosplay MUA</div><div class="card-desc">Expand ke segment cosplay & event convention</div></div>
-        </div>
-
-        <h3 class="section-subtitle">Market Focus</h3>
-        <div class="market-pills animate-on-scroll">
-            <div class="pill"><span class="pill-icon">💍</span> Wedding <span class="pill-tag primary">Primary</span></div>
-            <div class="pill"><span class="pill-icon">🎓</span> Event (Wisuda, Ulang Tahun) <span class="pill-tag secondary">Secondary</span></div>
-            <div class="pill"><span class="pill-icon">🎭</span> Cosplay MUA <span class="pill-tag potential">Potensi</span></div>
-        </div>
-        <p>Note: Bulan Suro (bulan pertama kalender Jawa) — hindari booking wedding tradisional.</p>
-    </div>
-
-    <!-- SECTION 04: MITRAAN -->
-    <div class="section" id="mitra">
-        <div class="section-label">04 — Kemitraan</div>
-        <h2 class="section-title">Struktur Kemitraan & Kontribusi</h2>
-
-        <h3 class="section-subtitle">Scope of Work — Deo Vatta <span style="font-size:13px;font-weight:400;color:var(--text-light)">(PIHAK PERTAMA)</span></h3>
-        <div class="cards animate-on-scroll">
-            <div class="card"><div class="card-title">1. Arsitektur Bisnis</div><div class="card-desc">Flow bisnis & SOP operasional</div></div>
-            <div class="card"><div class="card-title">2. Sistem Penawaran</div><div class="card-desc">Paket & sistem pembayaran</div></div>
-            <div class="card"><div class="card-title">3. Marketing Plan</div><div class="card-desc">Strategi marketing sistematis</div></div>
-            <div class="card"><div class="card-title">4. Brand Positioning</div><div class="card-desc">Posisi brand di pasar</div></div>
-            <div class="card"><div class="card-title">5. Website</div><div class="card-desc">Company Profile, Booking, Calendar</div></div>
-            <div class="card"><div class="card-title">6. Content Plan</div><div class="card-desc">Strategi & guideline produksi konten</div></div>
-            <div class="card"><div class="card-title">7. Event Planning</div><div class="card-desc">Cari, daftarkan, buat event</div></div>
-        </div>
-
-        <h3 class="section-subtitle">Scope of Work — Dea Rahajeng <span style="font-size:13px;font-weight:400;color:var(--text-light)">(PIHAK KEDUA)</span></h3>
-        <div class="cards animate-on-scroll">
-            <div class="card"><div class="card-title">1. Makeup Execution</div><div class="card-desc">Eksekusi jasa rias per proyek klien</div></div>
-            <div class="card"><div class="card-title">2. Produksi Konten</div><div class="card-desc">Eksekusi konten visual & video</div></div>
-            <div class="card"><div class="card-title">3. Management Asset</div><div class="card-desc">Alat makeup, busana, inventory</div></div>
-            <div class="card"><div class="card-title">4. Event Execution</div><div class="card-desc">Menghadiri & berpartisipasi di event</div></div>
-        </div>
-
-        <h3 class="section-subtitle">Kontribusi Masing-Masing</h3>
-        <table class="animate-on-scroll">
-            <thead><tr><th>Aspek</th><th>Deo Vatta</th><th>Dea Rahajeng</th></tr></thead>
+        <h3 class="section-subtitle">Strengths (Kekuatan)</h3>
+        <table>
+            <thead>
+                <tr><th style="width:40px">No</th><th>Kekuatan</th></tr>
+            </thead>
             <tbody>
-                <tr><td>Jumlah Scope</td><td>7 scope</td><td>4 scope</td></tr>
-                <tr><td>Jenis Kontribusi</td><td>Strategy, marketing, digital, event planning</td><td>Service execution, produksi konten, asset management</td></tr>
-                <tr><td>Kompleksitas</td><td>Multi-disiplin</td><td>Spesifik MUA</td></tr>
-                <tr><td>Asset</td><td>Modal finansial + skill management</td><td>Brand + skill MUA + asset fisik</td></tr>
-                <tr><td>Estimasi Bobot</td><td><strong>~55%</strong></td><td><strong>~45%+</strong></td></tr>
+                <tr><td>1</td><td>Brand Raisha MUA sudah memiliki pondasi yang mumpuni</td></tr>
+                <tr><td>2</td><td>Memiliki MUA yang kompeten dan terbukti memiliki pengalaman kerja yang baik</td></tr>
+                <tr><td>3</td><td>MUA memiliki kemampuan dalam On-Cam (tambah nilai untuk konten video)</td></tr>
+                <tr><td>4</td><td>Brand sudah dikenal dan memiliki base klien</td></tr>
             </tbody>
         </table>
 
-        <blockquote class="animate-on-scroll">
-            <strong>Estimasi:</strong> Deo Vatta ~55% | Dea Rahajeng ~45%+<br>
-            <em>Persentase final Dea akan disesuaikan dengan hasil audit asset.</em>
-        </blockquote>
+        <h3 class="section-subtitle">Weaknesses (Kelemahan)</h3>
+        <table>
+            <thead>
+                <tr><th style="width:40px">No</th><th>Kelemahan</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>Belum memiliki sistem bisnis yang terstruktur</td></tr>
+                <tr><td>2</td><td>Belum memiliki marketing plan yang sistematis</td></tr>
+                <tr><td>3</td><td>Belum memiliki sistem awareness → selling → aftersales yang jelas</td></tr>
+                <tr><td>4</td><td>Belum memiliki sistem pembayaran dan penawaran yang menarik</td></tr>
+                <tr><td>5</td><td>Belum memiliki company profile profesional</td></tr>
+                <tr><td>6</td><td>Belum memiliki brand positioning yang jelas</td></tr>
+                <tr><td>7</td><td>Belum memiliki landing page / digital presence yang optimal</td></tr>
+                <tr><td>8</td><td>Model bisnis masih berjalan secara tradisional</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Opportunities (Peluang)</h3>
+        <table>
+            <thead>
+                <tr><th style="width:40px">No</th><th>Peluang</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>Brand berpotensi mengalami peningkatan yang signifikan dengan positioning yang tepat</td></tr>
+                <tr><td>2</td><td>Brand bisa meng-cover lebih banyak kategori pasar, tidak hanya wedding</td></tr>
+                <tr><td>3</td><td>Pemanfaatan teknologi internet untuk meningkatkan efisiensi bisnis</td></tr>
+                <tr><td>4</td><td>Mencapai awareness yang maksimal dengan memaksimalkan jaringan relasi yang sudah terbangun selama ini</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Threats (Tantangan)</h3>
+        <table>
+            <thead>
+                <tr><th style="width:40px">No</th><th>Tantangan</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>Brand sempat hiatus cukup lama sehingga awareness menurun</td></tr>
+                <tr><td>2</td><td>Memiliki kompetitor yang sudah cukup aktif di internet</td></tr>
+                <tr><td>3</td><td>Cukup sulit dalam mengubah positioning dan citra brand yang sudah berjalan</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Kesimpulan Analisis</h3>
+        <p>Raisha MUA memiliki fondasi brand dan skill MUA yang solid. Tantangan utama adalah memulihkan awareness brand pasca-hiatus dan menghadapi kompetitor digital. Dengan penataan arsitektur bisnis, marketing plan yang sistematis, serta digital presence yang profesional, potensi peningkatan omset sangat besar dan realistis untuk dicapai.</p>
     </div>
 
-    <!-- SECTION 05: REVENUE -->
+    <!-- 4. SOLUSI -->
+    <div class="section" id="solusi">
+        <div class="section-label">Section 04</div>
+        <h2 class="section-title">Solusi & Rencana Kerjasama</h2>
+
+        <h3 class="section-subtitle">Visi Kerjasama</h3>
+        <blockquote>
+            Meningkatkan omset Raisha MUA secara signifikan melalui penataan arsitektur bisnis, marketing sistem, dan digital presence yang profesional.
+        </blockquote>
+
+        <h3 class="section-subtitle">7 Area Perbaikan yang Akan Dilakukan</h3>
+
+        <div class="cards">
+            <div class="card">
+                <div class="card-num">01</div>
+                <div class="card-title">Arsitektur Bisnis</div>
+                <div class="card-desc">Mengatur ulang flow bisnis dari Awareness → Selling Conversion → Aftersales</div>
+            </div>
+            <div class="card">
+                <div class="card-num">02</div>
+                <div class="card-title">Sistem Pembayaran & Penawaran</div>
+                <div class="card-desc">Membuat paket dan sistem pembayaran yang lebih menarik & kompetitif</div>
+            </div>
+            <div class="card">
+                <div class="card-num">03</div>
+                <div class="card-title">Marketing Plan</div>
+                <div class="card-desc">Menyusun strategi marketing agar brand lebih dikenal dan menjangkau pasar lebih luas</div>
+            </div>
+            <div class="card">
+                <div class="card-num">04</div>
+                <div class="card-title">Brand Positioning</div>
+                <div class="card-desc">Menentukan posisi Raisha MUA di pasar agar berbeda dan lebih menonjol dari kompetitor</div>
+            </div>
+            <div class="card">
+                <div class="card-num">05</div>
+                <div class="card-title">Website</div>
+                <div class="card-desc">Company Profile, Online Calendar, Testimonial, dan Booking Online</div>
+            </div>
+            <div class="card">
+                <div class="card-num">06</div>
+                <div class="card-title">Event Online & Offline</div>
+                <div class="card-desc">Meningkatkan kontribusi dan mendapatkan relasi lebih besar</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. SCOPE OF WORK -->
+    <div class="section" id="scope">
+        <div class="section-label">Section 05</div>
+        <h2 class="section-title">Ruang Lingkup Kerja<br><small style="font-family:'Inter';font-size:16px;font-weight:400;color:var(--text-light)">Scope of Work</small></h2>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🏗️</div>
+                <div>
+                    <div class="scope-icon-title">Arsitektur Bisnis</div>
+                    <div class="scope-icon-sub">Menciptakan flow bisnis yang jelas dan sistematis</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Mapping customer journey: Awareness → Consideration → Booking → Transaction → Aftersales</li>
+                <li>Perancangan sistem inquiry, penawaran, dan follow-up</li>
+                <li>SOP dasar operasional</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">💳</div>
+                <div>
+                    <div class="scope-icon-title">Sistem Pembayaran & Penawaran</div>
+                    <div class="scope-icon-sub">Membuat penawaran yang lebih menarik dan mudah dijangkau klien</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Desain paket layanan (basic, standard, premium)</li>
+                <li>Sistem pembayaran (DP, cicilan, full payment)</li>
+                <li>Template penawaran profesional</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">📣</div>
+                <div>
+                    <div class="scope-icon-title">Marketing Plan</div>
+                    <div class="scope-icon-sub">Meningkatkan brand awareness dan menjangkau pasar lebih luas</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Strategi marketing 3–6 bulan ke depan</li>
+                <li>Content plan untuk media sosial</li>
+                <li>Target audience definition</li>
+                <li>Channel strategy (Instagram, TikTok, dll.)</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🎯</div>
+                <div>
+                    <div class="scope-icon-title">Brand Positioning</div>
+                    <div class="scope-icon-sub">Menentukan posisi Raisha MUA di pasar agar lebih menonjol</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Analisis kompetitor</li>
+                <li>Unique selling proposition (USP)</li>
+                <li>Brand positioning statement</li>
+                <li>Tone of voice & visual identity guide</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🌐</div>
+                <div>
+                    <div class="scope-icon-title">Website</div>
+                    <div class="scope-icon-sub">Company Profile, Online Calendar, Testimonial & Booking Online</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Desain & development website profesional</li>
+                <li>Online calendar untuk jadwal MUA</li>
+                <li>Halaman testimonial & portofolio</li>
+                <li>Sistem booking online untuk kemudahan klien</li>
+                <li>SEO setup untuk pencarian online</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🎪</div>
+                <div>
+                    <div class="scope-icon-title">Event Online & Offline</div>
+                    <div class="scope-icon-sub">Meningkatkan kontribusi dan mendapatkan relasi lebih besar</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Rencana dan eksekusi event online (live, giveaway, dll.)</li>
+                <li>Rencana dan eksekusi event offline / bridal show</li>
+                <li>Strategi branding untuk meningkatkan trust & kredibilitas</li>
+                <li>Ekspansi jaringan relasi</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 6. STRUKTUR KEMITRAAN -->
+    <div class="section" id="mitra">
+        <div class="section-label">Section 06</div>
+        <h2 class="section-title">Struktur Kemitraan & Kontribusi</h2>
+
+        <h3 class="section-subtitle">Model Bisnis</h3>
+        <p>Kerjasama ini dibangun dengan prinsip bahwa <strong>semua pemasukan masuk ke perusahaan</strong>, <strong>semua biaya ditanggung perusahaan</strong>, dan <strong>setelah operasional tercukupi, sisa profit dibagikan kepada kedua belah pihak</strong> berdasarkan bobot kontribusi masing-masing.</p>
+
+        <h3 class="section-subtitle">Scope of Work — Deo Vatta (PIHAK PERTAMA)</h3>
+        <table>
+            <thead><tr><th>No</th><th>Scope</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>Arsitektur Bisnis — Mengatur ulang flow bisnis dari Awareness → Selling Conversion → Aftersales</td></tr>
+                <tr><td>2</td><td>Sistem Pembayaran & Penawaran — Membuat paket dan sistem pembayaran yang lebih menarik</td></tr>
+                <tr><td>3</td><td>Marketing Plan — Menyusun strategi marketing agar brand lebih dikenal</td></tr>
+                <tr><td>4</td><td>Brand Positioning — Menentukan posisi Raisha MUA di pasar agar lebih menonjol</td></tr>
+                <tr><td>5</td><td>Website — Company Profile, Online Calendar, Testimonial, dan Booking Online</td></tr>
+                <tr><td>6</td><td>Content Plan — Membuat rencana konten: strategi, topik, jadwal, dan guideline produksi konten</td></tr>
+                <tr><td>7</td><td>Event Planning — Mencari, mendaftarkan, dan/atau membuat event; Dea yang akan menghadirinya</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Scope of Work — Dea Rahajeng Taufik (PIHAK KEDUA)</h3>
+        <table>
+            <thead><tr><th>No</th><th>Scope</th></tr></thead>
+            <tbody>
+                <tr><td>1</td><td>Melakukan kegiatan Makeup — Eksekusi jasa rias untuk setiap proyek klien</td></tr>
+                <tr><td>2</td><td>Produksi Konten — Eksekusi pembuatan konten visual dan video berdasarkan content plan dari Deo</td></tr>
+                <tr><td>3</td><td>Management Asset — Pengelolaan alat makeup, busana, dan inventory</td></tr>
+                <tr><td>4</td><td>Event Execution — Menghadiri dan berpartisipasi dalam event yang sudah dicari/didaftarkan/dibuat oleh Deo</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Kontribusi Masing-Masing Pihak</h3>
+
+        <h3 class="section-subtitle2">Deo Vatta (PIHAK PERTAMA) — Mitra Bisnis</h3>
+        <table>
+            <thead><tr><th>Kategori</th><th>Detail</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Business & Manajemen</strong></td><td>Penataan arsitektur bisnis & SOP, management operasional</td></tr>
+                <tr><td><strong>Marketing</strong></td><td>Marketing plan, content plan, brand positioning</td></tr>
+                <tr><td><strong>Digital</strong></td><td>Website, company profile, online booking system</td></tr>
+                <tr><td><strong>Event</strong></td><td>Mencari, mendaftarkan, dan membuat event; Dea yang menghadirinya</td></tr>
+                <tr><td><strong>Modal</strong></td><td><em>(nominal akan ditentukan setelah perhitungan asset)</em></td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle2">Dea Rahajeng Taufik (PIHAK KEDUA) — Pemilik Raisha MUA</h3>
+        <table>
+            <thead><tr><th>Kategori</th><th>Detail</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Brand</strong></td><td>Kepemilikan brand Raisha MUA</td></tr>
+                <tr><td><strong>Skill MUA</strong></td><td>Tenaga MUA yang sudah terlatih & kompeten</td></tr>
+                <tr><td><strong>Base Klien</strong></td><td>Pelanggan existing / jaringan yang sudah terbangun</td></tr>
+                <tr><td><strong>Portfolio</strong></td><td>Hasil kerja MUA yang sudah ada</td></tr>
+                <tr><td><strong>Reputasi</strong></td><td>Brand reputation yang sudah terbentuk</td></tr>
+                <tr><td><strong>Asset Fisik</strong></td><td>Alat makeup, busana, dan inventory</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Perhitungan Bobot Kontribusi</h3>
+        <p>Perhitungan bobot kontribusi mempertimbangkan tingkat kompleksitas dan tanggung jawab masing-masing pihak. <strong>Persentase final akan terlihat setelah perhitungan asset Raisha MUA</strong>, angka di bawah ini adalah estimasi awal:</p>
+
+        <table>
+            <thead><tr><th>Aspek</th><th>Deo Vatta (PIHAK PERTAMA)</th><th>Dea Rahajeng (PIHAK KEDUA)</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Jumlah Scope</strong></td><td>7 scope (implementation + ongoing)</td><td>4 scope (service production)</td></tr>
+                <tr><td><strong>Jenis Kontribusi</strong></td><td>Business strategy, marketing, digital, event planning</td><td>Service execution, content production, asset management</td></tr>
+                <tr><td><strong>Kompleksitas</strong></td><td>Multi-disiplin (bisnis, tech, kreatif)</td><td>Spesifik (MUA & asset)</td></tr>
+                <tr><td><strong>Waktu Kerja</strong></td><td>Full-scope implementation + ongoing</td><td>Service-based per project</td></tr>
+                <tr><td><strong>Asset/Bukan</strong></td><td>Modal finansial + skill management</td><td>Brand ownership + skill MUA + asset fisik</td></tr>
+                <tr><td><strong>Bobot Estimasi</strong></td><td><strong>~55%</strong></td><td><strong>~45%</strong></td></tr>
+            </tbody>
+        </table>
+
+        <blockquote>
+            <strong>Estimasi bobot kontribusi awal:</strong><br>
+            <strong>Deo Vatta (PIHAK PERTAMA): ~55%</strong><br>
+            <strong>Dea Rahajeng (PIHAK KEDUA): ~45%</strong><br><br>
+            <em>Persentase final akan disesuaikan setelah hasil audit asset Raisha MUA.</em>
+        </blockquote>
+
+        <p>Persentase ini berdasarkan penilaian objektif terhadap jumlah scope kerja, kompleksitas tanggung jawab, dan durasi kontribusi masing-masing pihak. Angka final akan disepakati setelah diskusi bersama dan disesuaikan dengan hasil audit asset.</p>
+    </div>
+
+    <!-- 7. MODEL PEMBAGIAN REVENUE -->
     <div class="section" id="revenue">
-        <div class="section-label">05 — Revenue</div>
+        <div class="section-label">Section 07</div>
         <h2 class="section-title">Model Pembagian Revenue</h2>
 
-        <ul class="checklist animate-on-scroll">
-            <li><div class="check-box"></div><div><strong>Semua pemasukan masuk ke perusahaan</strong> — tidak ada pembayaran langsung klien ke individu</div></li>
-            <li><div class="check-box"></div><div><strong>Semua biaya operasional ditanggung perusahaan</strong> — produk, transport, marketing, overhead</div></li>
-            <li><div class="check-box"></div><div><strong>Pendapatan Deo & Dea</strong> — hanya dari bagi hasil profit % setiap bulan</div></li>
-            <li><div class="check-box"></div><div><strong>Dea share</strong> akan ditambah dengan nilai asset yang dimilikinya (final setelah audit)</div></li>
-            <li><div class="check-box"></div><div><strong>Cashflow perusahaan</strong> disimpan untuk operasional & reinvestasi</div></li>
+        <h3 class="section-subtitle">Prinsip Dasar</h3>
+        <ul class="checklist">
+            <li><div class="check-box"></div> <strong>Semua pemasukan masuk ke perusahaan</strong> — tidak ada pembayaran langsung antara klien ke individu</li>
+            <li><div class="check-box"></div> <strong>Semua biaya operasional ditanggung perusahaan</strong> — termasuk biaya produksi, transport, marketing, dan overhead</li>
+            <li><div class="check-box"></div> <strong>Dea mendapatkan fee per project</strong> untuk setiap eksekusi MUA yang dilakukan</li>
+            <li><div class="check-box"></div> <strong>Deo mendapatkan fee per deliverable</strong> untuk setiap scope pekerjaan yang diselesaikan</li>
+            <li><div class="check-box"></div> <strong>Profit bersih setelah biaya</strong> dibagikan berdasarkan bobot kontribusi</li>
+            <li><div class="check-box"></div> <strong>Bobot Dea akan ditambahkan</strong> dengan total nilai asset yang dimilikinya — hasil final akan terlihat setelah audit asset</li>
+            <li><div class="check-box"></div> <strong>Cashflow perusahaan</strong> disimpan untuk memastikan operasional dan reinvestasi berjalan lancar</li>
         </ul>
 
-        <h3 class="section-subtitle">Flow Pembagian</h3>
-        <div class="flow-box animate-on-scroll">Pemasukan Masuk (dari klien)
-   │
-   ▼
-┌─────────────────────────────┐
-│    PERUSAHAAN (RAISHA MUA)   │
-└─────────────────────────────┘
-   │
-   ├─── Biaya Operasional
-   │
-   ▼
-┌─────────────────────────────┐
-│     PROFIT BERSIH            │
-└─────────────────────────────┘
-   │
-   ├─── ~55% ──► Deo Vatta
-   │
-   └─── ~45%+ ──► Dea Rahajeng
-       (+ nilai asset)
-   │
-   ▼
-┌─────────────────────────────┐
-│  CASHFLOW PERUSAHAAN         │
-│  (operasional & reinvestasi) │
-└─────────────────────────────┘</div>
+        <h3 class="section-subtitle">Flow Pembagian Revenue</h3>
+        <pre>
+Pemasukan Masuk (dari klien)
+        │
+        ▼
+  ┌─────────────────────────────────────┐
+  │     PERUSAHAAN (RAISHA MUA)         │
+  └─────────────────────────────────────┘
+        │
+        ├─── Biaya Operasional
+        │   (produk, transport, dll.)
+        │
+        ├─── Fee Dea per Project MUA
+        ├─── Fee Deo per Deliverable
+        │
+        ▼
+  ┌─────────────────────────────────────┐
+  │     PROFIT BERSIH                    │
+  └─────────────────────────────────────┘
+        │
+        ├─── ~55% ──► Deo Vatta
+        │
+        └─── ~45%+ ──► Dea Rahajeng
+            (ditambah nilai asset)
+        │
+        ▼
+  ┌─────────────────────────────────────┐
+  │     CASHFLOW PERUSAHAAN              │
+  │     (untuk reinvestasi & operasional) │
+  └─────────────────────────────────────┘
+        </pre>
 
-        <blockquote class="animate-on-scroll">
-            Total income menunggu <strong>perhitungan harga paket final</strong>.<br>
-            Estimasi target project per bulan dapat dilihat di <strong>Section Timeline</strong>.
-        </blockquote>
+        <h3 class="section-subtitle">Fee per Project</h3>
+        <table>
+            <thead><tr><th>Pihak</th><th>Scope</th><th>Fee</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Dea Rahajeng</strong></td><td>Per Eksekusi MUA (wedding, engagement, dll.)</td><td><em>Nominal akan ditentukan berdasarkan paket layanan</em></td></tr>
+                <tr><td><strong>Deo Vatta</strong></td><td>Per Deliverable Scope Work (website, marketing plan, dll.)</td><td><em>Nominal akan ditentukan per project</em></td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Pembagian Profit Bersih</h3>
+        <table>
+            <thead><tr><th>Pihak</th><th>Estimasi Bobot</th><th>Persentase</th></tr></thead>
+            <tbody>
+                <tr><td>Deo Vatta (PIHAK PERTAMA)</td><td>~55%</td><td><strong>~55% dari profit bersih</strong></td></tr>
+                <tr><td>Dea Rahajeng (PIHAK KEDUA)</td><td>~45%+</td><td><strong>~45% dari profit bersih + tambahan dari nilai asset</strong></td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>Catatan:</strong> Persentase final Dea akan disesuaikan setelah hasil <strong>audit asset</strong> Raisha MUA. Nilai asset Dea (brand, portfolio, base klien, equipment) akan menambah persentase bagi hasilnya.</p>
     </div>
 
-    <!-- SECTION 06: TIMELINE -->
+    <!-- 8. MARKET FOCUS -->
+    <div class="section" id="market">
+        <div class="section-label">Section 08</div>
+        <h2 class="section-title">Market Focus & Estimasi Project</h2>
+
+        <h3 class="section-subtitle">3 Segmen Market yang Ditargetkan</h3>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">💍</div>
+                <div>
+                    <div class="scope-icon-title">1. Wedding (Primary)</div>
+                    <div class="scope-icon-sub">Target utama — core business Raisha MUA</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Wedding ceremony & reception</li>
+                <li>Engagement & pre-wedding</li>
+                <li>Akad nikah</li>
+                <li>Sudah berjalan dan menjadi fondasi utama bisnis</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🎓</div>
+                <div>
+                    <div class="scope-icon-title">2. Event (Secondary)</div>
+                    <div class="scope-icon-sub">Diversifikasi — expand market tidak hanya wedding</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Graduation / Wisuda</li>
+                <li>Ulang tahun & celebration</li>
+                <li>Corporate event & gathering</li>
+                <li>Photoshoot & lainnya</li>
+            </ul>
+        </div>
+
+        <div class="scope-item">
+            <div class="scope-header">
+                <div class="scope-icon">🎭</div>
+                <div>
+                    <div class="scope-icon-title">3. Cosplay (Potensi Besar)</div>
+                    <div class="scope-icon-sub">Segment baru — potensi besar tapi butuh latihan tambahan</div>
+                </div>
+            </div>
+            <ul class="deliverable-list">
+                <li>Cosplay makeup untuk event anime/convention</li>
+                <li>SFX makeup</li>
+                <li>Portrait photography makeup</li>
+                <li>Butuh training/skill upgrade tambahan</li>
+            </ul>
+        </div>
+
+        <h3 class="section-subtitle">Konteks Waktu — Bulan Suro (Jawa)</h3>
+        <p>Bulan Suro (bulan pertama dalam kalender Jawa) adalah periode yang secara tradisional <strong>dihindari untuk pernikahan</strong> di Jawa. Ini menyebabkan penurunan signifikan booking wedding pada bulan tersebut. Estimasi project sudah mempertimbangkan kondisi ini.</p>
+
+        <h3 class="section-subtitle">Estimasi Project per Bulan</h3>
+
+        <h3 class="section-subtitle2">Bulan 1 — Building Brand</h3>
+        <p>Fokus pada penataan fondasi bisnis: arsitektur, marketing plan, brand positioning, dan website. Estimasi project yang masuk:</p>
+        <table>
+            <thead><tr><th>Segmen</th><th>Estimasi Project</th><th>Estimasi Harga/unit</th><th>Estimasi Omset</th></tr></thead>
+            <tbody>
+                <tr><td>Wedding</td><td>2 – 3 project</td><td>Rp 1.500.000 – Rp 3.000.000</td><td>Rp 3.000.000 – Rp 9.000.000</td></tr>
+                <tr><td>Event (Wisuda/Ulang Tahun)</td><td>0 – 1 project</td><td>Rp 300.000 – Rp 750.000</td><td>Rp 0 – Rp 750.000</td></tr>
+                <tr><td>Cosplay</td><td>0 project</td><td>—</td><td>Rp 0</td></tr>
+                <tr><td><strong>Total Estimasi</strong></td><td><strong>2 – 4 project</strong></td><td>—</td><td><strong>Rp 3.000.000 – Rp 9.750.000</strong></td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle2">Bulan 2 — Implementasi & Scale Up</h3>
+        <p>Setelah semua sistem berjalan (website, marketing plan, brand positioning aktif), estimasi project meningkat:</p>
+        <table>
+            <thead><tr><th>Segmen</th><th>Estimasi Project</th><th>Estimasi Harga/unit</th><th>Estimasi Omset</th></tr></thead>
+            <tbody>
+                <tr><td>Wedding</td><td>4 – 6 project</td><td>Rp 1.500.000 – Rp 3.000.000</td><td>Rp 6.000.000 – Rp 18.000.000</td></tr>
+                <tr><td>Event (Wisuda/Ulang Tahun)</td><td>2 – 3 project</td><td>Rp 300.000 – Rp 750.000</td><td>Rp 600.000 – Rp 2.250.000</td></tr>
+                <tr><td>Cosplay</td><td>1 – 2 project</td><td>Rp 500.000 – Rp 1.500.000</td><td>Rp 500.000 – Rp 3.000.000</td></tr>
+                <tr><td><strong>Total Estimasi</strong></td><td><strong>7 – 11 project</strong></td><td>—</td><td><strong>Rp 7.100.000 – Rp 23.250.000</strong></td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle2">Estimasi Profit Bersih per Bulan</h3>
+        <p><em>Asumsi: biaya operasional rata-rata ~30% dari omset</em></p>
+        <table>
+            <thead><tr><th>Bulan</th><th>Omset Estimasi</th><th>Biaya Operasional (~30%)</th><th>Profit Bersih Estimasi</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Bulan 1</strong></td><td>Rp 3.000.000 – Rp 9.750.000</td><td>Rp 900.000 – Rp 2.925.000</td><td>Rp 2.100.000 – Rp 6.825.000</td></tr>
+                <tr><td><strong>Bulan 2+</strong></td><td>Rp 7.100.000 – Rp 23.250.000</td><td>Rp 2.130.000 – Rp 6.975.000</td><td>Rp 4.970.000 – Rp 16.275.000</td></tr>
+            </tbody>
+        </table>
+
+        <h3 class="section-subtitle">Estimasi Pembagian Profit per Bulan</h3>
+        <p><em>Asumsi: profit bersih tengah (menggunakan estimasi average)</em></p>
+        <table>
+            <thead><tr><th>Bulan</th><th>Profit Mid-range</th><th>Deo (~55%)</th><th>Dea (~45%+asset)</th></tr></thead>
+            <tbody>
+                <tr><td><strong>Bulan 1</strong></td><td>Rp 4.460.000</td><td>Rp 2.450.000</td><td>Rp 2.010.000+</td></tr>
+                <tr><td><strong>Bulan 2+</strong></td><td>Rp 10.620.000</td><td>Rp 5.840.000</td><td>Rp 4.780.000+</td></tr>
+            </tbody>
+        </table>
+
+        <p><strong>Catatan Penting:</strong> Estimasi di atas berdasarkan asumsi dan angka average. Hasil nyata dapat berbeda. Persentase final Dea akan disesuaikan setelah audit asset. Semua angka masih bersifat estimasi dan akan dievaluasi secara berkala.</p>
+    </div>
+
+    <!-- 9. TIMELINE -->
     <div class="section" id="timeline">
-        <div class="section-label">06 — Timeline</div>
-        <h2 class="section-title">Timeline Implementasi & Target</h2>
+        <div class="section-label">Section 09</div>
+        <h2 class="section-title">Timeline Implementasi</h2>
 
-        <div class="target-box animate-on-scroll">
-            <div class="target-phase">Bulan 1 — Building Brand</div>
-            <div class="target-title">Fokus: Penataan Fondasi Bisnis</div>
-            <div class="target-desc">Arsitektur bisnis, marketing plan, brand positioning, development website. Target project realistis mengingat kondisi awal & dampak bulan Suro.</div>
-            <div class="target-stats">
-                <div class="stat"><div class="stat-num">2–4</div><div class="stat-label">Target Project</div></div>
-                <div class="stat"><div class="stat-num">3–10jt</div><div class="stat-label">Estimasi Omset</div></div>
-                <div class="stat"><div class="stat-num">2.1–6.8jt</div><div class="stat-label">Estimasi Profit</div></div>
-            </div>
-        </div>
-
-        <div class="timeline animate-on-scroll">
+        <div class="timeline">
+            <!-- Fase 1 -->
             <div class="timeline-item">
                 <div class="timeline-dot"></div>
-                <div class="timeline-phase">Minggu 1–2</div>
-                <div class="timeline-title">Perencanaan</div>
-                <div class="timeline-week"><span class="timeline-week-num">W1</span><span>Audit asset, riset pasar, analisis kompetitor</span></div>
-                <div class="timeline-week"><span class="timeline-week-num">W2</span><span>Penusunan marketing plan & brand positioning</span></div>
+                <div class="timeline-phase">Bulan 1</div>
+                <div class="timeline-title">Fase 1 — Perencanaan & Audit</div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 1</span><span>Audit asset Raisha MUA & diskusi final struktur partnership</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 2</span><span>Riset pasar & analisis kompetitor</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 3</span><span>Penusunan marketing plan & brand positioning</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 4</span><span>Perancangan arsitektur bisnis & customer journey</span></div>
             </div>
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-phase">Minggu 3–4</div>
-                <div class="timeline-title">Implementasi Awal</div>
-                <div class="timeline-week"><span class="timeline-week-num">W3</span><span>Arsitektur bisnis & customer journey</span></div>
-                <div class="timeline-week"><span class="timeline-week-num">W4</span><span>Desain brand positioning & paket layanan</span></div>
-            </div>
-        </div>
 
-        <div class="target-box animate-on-scroll">
-            <div class="target-phase">Bulan 2+ — Scale Up</div>
-            <div class="target-title">Fokus: Implementasi & Pertumbuhan</div>
-            <div class="target-desc">Website live, marketing plan aktif, brand positioning running. Estimasi naik signifikan dengan 3 segmen market aktif.</div>
-            <div class="target-stats">
-                <div class="stat"><div class="stat-num">5–12</div><div class="stat-label">Target Project</div></div>
-                <div class="stat"><div class="stat-num">7–24jt</div><div class="stat-label">Estimasi Omset</div></div>
-                <div class="stat"><div class="stat-num">4.9–16jt</div><div class="stat-label">Estimasi Profit</div></div>
+            <!-- Fase 2 -->
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-phase">Bulan 2–3</div>
+                <div class="timeline-title">Fase 2 — Implementasi</div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 5–6</span><span>Desain brand positioning & paket layanan</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 7–8</span><span>Implementasi marketing plan & content creation</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 9–10</span><span>Development website (company profile, booking, calendar)</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Minggu 11–12</span><span>Testing & refinement, SOP final, planning event</span></div>
             </div>
-        </div>
 
-        <div class="timeline animate-on-scroll">
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-phase">Minggu 5–8</div>
-                <div class="timeline-title">Development & Launch</div>
-                <div class="timeline-week"><span class="timeline-week-num">W5–6</span><span>Website development, content creation aktif</span></div>
-                <div class="timeline-week"><span class="timeline-week-num">W7–8</span><span>Marketing plan berjalan, awal akuisisi klien</span></div>
-            </div>
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
-                <div class="timeline-phase">Minggu 9–12</div>
-                <div class="timeline-title">Evaluasi & Optimasi</div>
-                <div class="timeline-week"><span class="timeline-week-num">W9–10</span><span>Website live, event planning dimulai</span></div>
-                <div class="timeline-week"><span class="timeline-week-num">W11–12</span><span>SOP final, monitoring performa, evaluasi berkala</span></div>
-            </div>
+            <!-- Fase 3 -->
             <div class="timeline-item" style="padding-bottom:0">
                 <div class="timeline-dot"></div>
                 <div class="timeline-phase">Bulan 4+</div>
-                <div class="timeline-title">Evaluasi & Optimasi Berkelanjutan</div>
-                <div class="timeline-week"><span class="timeline-week-num">Monthly</span><span>Evaluasi performa & optimasi berdasarkan data</span></div>
+                <div class="timeline-title">Fase 3 — Evaluasi & Optimasi</div>
+                <div class="timeline-week"><span class="timeline-week-num">Ongoing</span><span>Monitoring performa & optimasi berdasarkan data</span></div>
+                <div class="timeline-week"><span class="timeline-week-num">Monthly</span><span>Evaluasi berkala setiap bulan</span></div>
             </div>
         </div>
     </div>
 
-    <!-- SECTION 07: PENUTUP -->
+    <!-- 10. PENUTUP -->
     <div class="section" id="penutup">
-        <div class="section-label">07 — Penutup</div>
+        <div class="section-label">Section 10</div>
         <h2 class="section-title">Penutup</h2>
 
-        <p>Raisha MUA memiliki fondasi brand dan skill MUA yang solid. Dengan penataan arsitektur bisnis, marketing plan sistematis, serta digital presence profesional, potensi peningkatan omset sangat besar dan realistis untuk dicapai.</p>
-        <p>Proposal ini adalah langkah awal dari kemitraan yang semoga menguntungkan kedua belah pihak secara jangka panjang.</p>
+        <p>Raisha MUA memiliki fondasi brand dan skill MUA yang solid. Dengan penataan arsitektur bisnis, marketing plan yang sistematis, serta digital presence yang profesional, potensi peningkatan omset sangat besar dan realistis untuk dicapai.</p>
 
-        <blockquote class="animate-on-scroll">
+        <p>Proposal ini adalah langkah awal dari sebuah kemitraan yang semoga bisa menguntungkan kedua belah pihak secara jangka panjang.</p>
+
+        <blockquote>
             <strong>Saya mengundang Dea untuk berdiskusi lebih lanjut</strong> mengenai:<br>
-            &nbsp;&nbsp;• Audit asset Raisha MUA<br>
+            &nbsp;&nbsp;• Audit asset dan valuation Raisha MUA<br>
             &nbsp;&nbsp;• Nominal modal kontribusi Deo<br>
-            &nbsp;&nbsp;• Detail sebelum penandatanganan perjanjian
+            &nbsp;&nbsp;• Detail lainnya sebelum penandatanganan perjanjian
         </blockquote>
 
-        <div class="signatures animate-on-scroll">
+        <div class="signatures">
             <div class="signature-box">
                 <div class="signature-line"></div>
                 <div class="signature-label">PIHAK PERTAMA</div>
@@ -769,7 +1295,8 @@
                 <div class="signature-name">Dea Rahajeng Taufik</div>
             </div>
         </div>
-        <p style="text-align:center; font-size:12px; color:var(--text-light)">
+
+        <p style="text-align:center; font-size:12px; color:var(--text-light); margin-top:20px;">
             Tangerang Selatan, 30 Juni 2026
         </p>
     </div>
@@ -778,27 +1305,32 @@
     <div class="section" id="lampiran">
         <div class="section-label">Lampiran</div>
         <h2 class="section-title">Lampiran A — To-Do Sebelum Penandatanganan</h2>
+        <p>Bagian ini perlu diisi / diverifikasi sebelum perjanjian final ditandatangani:</p>
 
-        <ul class="checklist animate-on-scroll">
-            <li><div class="check-box"></div><div><strong>Audit Asset Raisha MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Dokumentasi lengkap: brand value, base klien, equipment, dll.</span></div></li>
-            <li><div class="check-box"></div><div><strong>Perhitungan Harga Paket Final</strong><br><span style="font-size:12px;color:var(--text-light)">Nominal paket per segmen (wedding, event, cosplay).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Modal Kontribusi Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Jumlah modal investasi untuk operasional awal.</span></div></li>
-            <li><div class="check-box"></div><div><strong>Konfirmasi Persentase</strong><br><span style="font-size:12px;color:var(--text-light)">~55% Deo : ~45%+ Dea (final setelah audit asset).</span></div></li>
-            <li><div class="check-box"></div><div><strong>Durasi Perjanjian</strong><br><span style="font-size:12px;color:var(--text-light)">Jangka waktu cooperation.</span></div></li>
+        <ul class="checklist">
+            <li><div class="check-box"></div><div><strong>Audit Asset Raisha MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Dokumentasi lengkap aset, brand value, base klien, equipment, dll. untuk menghitung persentase final.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Nominal Fee per Project MUA</strong><br><span style="font-size:12px;color:var(--text-light)">Kesepakatan fee Dea per eksekusi MUA per segmen (wedding, event, cosplay).</span></div></li>
+            <li><div class="check-box"></div><div><strong>Nominal Fee per Deliverable Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Kesepakatan fee Deo per scope project (website, marketing plan, dll.).</span></div></li>
+            <li><div class="check-box"></div><div><strong>Modal Kontribusi Deo</strong><br><span style="font-size:12px;color:var(--text-light)">Jumlah modal yang akan diinvestasikan untuk operasional awal.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Konfirmasi Persentase Pembagian Profit</strong><br><span style="font-size:12px;color:var(--text-light)">~55% Deo : ~45%+Dea (final setelah audit asset).</span></div></li>
+            <li><div class="check-box"></div><div><strong>Market & Estimasi Project</strong><br><span style="font-size:12px;color:var(--text-light)">Validasi asumsi estimasi project per bulan dan harga per paket layanan.</span></div></li>
+            <li><div class="check-box"></div><div><strong>Durasi Perjanjian</strong><br><span style="font-size:12px;color:var(--text-light)">Jangka waktu cooperation (1 tahun, 2 tahun, dll.).</span></div></li>
+            <li><div class="check-box"></div><div><strong>Klausul lain</strong><br><span style="font-size:12px;color:var(--text-light)">Jika ada yang perlu ditambahkan.</span></div></li>
         </ul>
     </div>
 
-    <!-- LAMPIRAN B: REVISI -->
+    <!-- LAMPIRAN B — REVISI -->
     <div class="section">
-        <h2 class="section-title" style="font-size:20px">Lampiran B — Catatan Revisi</h2>
-        <table class="rev-table animate-on-scroll">
-            <thead><tr><th>Tanggal</th><th>Revisi</th><th>Keterangan</th></tr></thead>
+        <h2 class="section-title">Lampiran B — Catatan Revisi</h2>
+        <table class="rev-table">
+            <thead>
+                <tr><th>Tanggal</th><th>Revisi</th><th>Keterangan</th></tr>
+            </thead>
             <tbody>
-                <tr><td>2026-06-30</td><td>Draft</td><td>Versi pertama</td></tr>
-                <tr><td>2026-06-30</td><td>Rev 1</td><td>SWOT lengkap, lokasi Tangerang Selatan</td></tr>
-                <tr><td>2026-07-01</td><td>Rev 2</td><td>Model fee/project, profit 60:40, scope SOW</td></tr>
-                <tr><td>2026-07-01</td><td>Rev 3</td><td>Scope: content plan + event planning Deo; produksi konten + event execution Dea; market 3 segmen; estimasi project</td></tr>
-                <tr><td>2026-07-01</td><td>Rev 4</td><td>Hapus fee per project/deliverable; hanya bagi profit%; timeline + estimates digabung; navbar mobile-first; animasi; simplifikasi UI</td></tr>
+                <tr><td>2026-06-30</td><td>Draft awal</td><td>Versi pertama proposal</td></tr>
+                <tr><td>2026-06-30</td><td>Revisi</td><td>Update lokasi → Tangerang Selatan; Strengths diperbaiki; Weaknesses dihapus; Opportunities & Threats ditambahkan</td></tr>
+                <tr><td>2026-07-01</td><td>Revisi 3</td><td>Nama Deo Vatta Taufik → Deo Vatta; Model bisnis baru (fee/project + bagi profit ~55:~45); Scope SOW Deo & Dea; Alamat cover → Tangerang Selatan; Lokasi usaha → Graha Pandawa Kendal</td></tr>
+                <tr><td>2026-07-01</td><td>Revisi 4</td><td>Scope Deo: content plan (bukan produksi); Event planning (bukan execution). Scope Dea: produksi konten + event execution. Profit sharing: Dea + nilai asset. Tambah Market Focus (3 segmen: Wedding, Event, Cosplay) + estimasi project + cashflow. Update timeline.</td></tr>
             </tbody>
         </table>
     </div>
@@ -806,58 +1338,37 @@
 </div>
 
 <!-- PRINT BUTTON -->
-<button class="print-btn" onclick="window.print()" title="Save as PDF">⬇</button>
+<button class="print-btn" onclick="window.print()" title="Print / Save as PDF">⬇</button>
 
 <script>
-    // ── Mobile Nav Toggle ──
-    const toggle = document.getElementById('navToggle');
-    const links = document.getElementById('navLinks');
-    toggle.addEventListener('click', () => {
-        links.classList.toggle('open');
-        toggle.textContent = links.classList.contains('open') ? '✕' : '☰';
-    });
-    // Close on link click (mobile)
-    links.querySelectorAll('.nav-link').forEach(link => {
-        link.addEventListener('click', () => {
-            links.classList.remove('open');
-            toggle.textContent = '☰';
-        });
-    });
-
-    // ── Active Nav Highlight ──
+    // Active nav highlighting
     const sections = document.querySelectorAll('.section, .cover');
-    const navLinksAll = document.querySelectorAll('.nav-link');
+    const navLinks = document.querySelectorAll('.nav-link');
+
     function updateActive() {
         let current = '';
         sections.forEach(sec => {
             const top = sec.getBoundingClientRect().top;
             if (top <= 120) current = sec.id;
         });
-        navLinksAll.forEach(link => {
+        navLinks.forEach(link => {
             link.classList.toggle('active', link.getAttribute('href') === '#' + current);
         });
     }
-    window.addEventListener('scroll', updateActive, { passive: true });
+
+    window.addEventListener('scroll', updateActive);
     updateActive();
 
-    // ── Smooth Scroll ──
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-        a.addEventListener('click', e => {
-            const t = document.querySelector(a.getAttribute('href'));
-            if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-        });
-    });
-
-    // ── Scroll Animations (Intersection Observer) ──
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                observer.unobserve(entry.target);
+    // Smooth scroll for nav links
+    navLinks.forEach(link => {
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const target = document.querySelector(link.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         });
-    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-    document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+    });
 </script>
 
 </body>
