@@ -7,6 +7,12 @@ Automated Instagram prospecting tool untuk Raisha MUA (Makeup Artist Semarang). 
 - **Vendors** - Other wedding services
 - **Clients** - Potential customers (commenters)
 
+## Goals
+
+1. **Competitor Analysis** - Know your competition in the MUA space
+2. **Vendor Partnership** - Find potential wedding vendor partners
+3. **Client Prospecting** - Find potential customers from hashtag engagement
+
 ## Architecture
 
 ```
@@ -35,85 +41,111 @@ Automated Instagram prospecting tool untuk Raisha MUA (Makeup Artist Semarang). 
 
 ### Service Account Setup
 
-1. Create Service Account di Google Cloud Console
-2. Download JSON key file
-3. Share spreadsheet ke service account email
-
 **Service Account Email:**
 ```
 claude@cogent-range-458804-r9.iam.gserviceaccount.com
 ```
 
-### Spreadsheet Structure
+**Spreadsheet ID:** `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
 
-```
-Spreadsheet ID: 1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM
+Share spreadsheet to service account email with Editor access.
 
-├── Setting (row 1)
-│   └── Configuration parameters
-├── Competitors (row 1)
-│   └── MUA/Makeup accounts
-├── Vendors (row 1)
-│   └── Other wedding services
-└── Clients (row 1 = empty, row 2 = headers)
-    ├── Profile
-    ├── Username
-    ├── Source
-    ├── Comment
-    ├── Date
-    ├── Location
-    ├── Private
-    ├── Followers
-    ├── Bio
-    ├── Status
-    └── Notes
-```
+## Spreadsheet Structure
 
-## Instagram Cookies Setup
+All data sheets use: **Row 1 = empty, Row 2 = headers, Row 3+ = data**
 
-### How to Get Cookies
+### Setting Sheet
 
-1. Open Instagram in browser (logged in as Raisha)
-2. Open DevTools (F12)
-3. Go to Application > Cookies > instagram.com
-4. Export all cookies as JSON
-5. Copy to `cookies` array in scanner
+Configuration parameters (read at runtime by scanner).
 
-### Required Cookies
+| Parameter | Default | Description |
+|----------|---------|-------------|
+| province | JawaTengah | Target province |
+| city | Semarang,Salatiga,Solo,Boja | Target cities |
+| hashtags | muasemarang,muasurabaya,... | Hashtags to scrape |
+| daily_client_limit | 5 | Max clients per scan |
+| daily_vendor_limit | 5 | Max vendors per scan |
+| daily_competitor_limit | 10 | Max competitors per scan |
+| competitor_keywords | mua,makeup,rias,... | MUA/Makeup keywords |
+| vendor_keywords | fotografer,catering,... | Wedding vendor keywords |
+| comment_length_min | 5 | Min comment characters |
+| exclude_patterns | Tags,Like,Follow | Patterns to exclude |
 
-| Cookie | Purpose | Expires |
-|--------|---------|---------|
-| sessionid | Main session | ~1 year |
-| csrftoken | CSRF protection | ~6 months |
-| datr | Facebook datr | ~2 years |
-| mid | Machine ID | ~2 years |
-| ig_did | Device ID | ~6 months |
-| ps_n/ps_l | Login state | ~1 year |
-| ds_user_id | User ID | ~6 months |
+### Clients Sheet
 
-### Cookie Format
+Potential customers (people who commented on posts, not vendors).
 
-```javascript
-const COOKIES = [
-  {
-    name: 'sessionid',
-    value: '4864280079%3A...',
-    domain: '.instagram.com',
-    path: '/',
-    expires: 1814308284.532215,
-    httpOnly: true,
-    secure: true,
-    sameSite: 'None'
-  },
-  // ... other cookies
-];
-```
+**Columns (Row 1 empty, Row 2 headers):**
+
+| # | Column | Source |
+|---|--------|--------|
+| A | (empty) | - |
+| B | Profile | Instagram URL |
+| C | Username | Extracted from URL |
+| D | Source | Post URL where commented |
+| E | Comment | Comment text |
+| F | Date | Comment date |
+| G | Location | From bio (if available) |
+| H | Private | Yes/No |
+| I | Followers | Follower count |
+| J | Bio | Full bio text |
+| K | Status | Potential Client / Contacted / etc |
+| L | Notes | Manual notes |
+
+### Competitors Sheet
+
+MUA/Makeup accounts (direct competitors).
+
+**Columns (Row 1 empty, Row 2 headers):**
+
+| # | Column | Source |
+|---|--------|--------|
+| A | No | Auto-number |
+| B | MUA | Display name from bio |
+| C | Profile | Instagram URL |
+| D | Username | @username |
+| E | Location | City from bio |
+| F | Province | From Setting |
+| G | Followers | Follower count |
+| H | Following | Following count |
+| I | Posts | Total posts |
+| J | Last Post | Most recent post date |
+| K | Engagement | Calculated (likes+comments)/followers |
+| L | Hashtags | Hashtags they use |
+| M | Bio | Full bio |
+| N | Status | Open/Closed/Pending |
+| O | Notes | Manual notes |
+
+### Vendors Sheet
+
+Other wedding services (partnership opportunities).
+
+**Columns (Row 1 empty, Row 2 headers):**
+
+| # | Column | Source |
+|---|--------|--------|
+| A | No | Auto-number |
+| B | Vendor | Display name |
+| C | Profile | Instagram URL |
+| D | Username | @username |
+| E | Category | Detected (Fotografer/Catering/etc) |
+| F | Location | City from bio |
+| G | Province | From Setting |
+| H | Followers | Follower count |
+| I | Following | Following count |
+| J | Posts | Total posts |
+| K | Last Post | Most recent post date |
+| L | Engagement | Calculated |
+| M | Hashtags | Hashtags they use |
+| N | Bio | Full bio |
+| O | Status | Open/Closed/Pending |
+| P | Notes | Manual notes |
 
 ## Detection Logic
 
 ### Competitor Detection (MUA/Makeup)
 
-Account yang mengandung keyword berikut di bio → **Competitors sheet**
+Account dengan keyword berikut di bio → **Competitors sheet**
 
 ```javascript
 const COMPETITOR_KEYWORDS = [
@@ -124,7 +156,7 @@ const COMPETITOR_KEYWORDS = [
 
 ### Vendor Detection (Other Wedding Services)
 
-Account yang mengandung keyword berikut di bio → **Vendors sheet**
+Account dengan keyword berikut di bio → **Vendors sheet**
 
 ```javascript
 const VENDOR_KEYWORDS = [
@@ -143,54 +175,65 @@ const VENDOR_KEYWORDS = [
 ### Client Detection (Potential Customers)
 
 - Commenters yang **TIDAK** mengandung competitor/vendor keywords
-- Comment mengandung keyword婚礼-related (optional): `wedding, nikah, rias, pengantin`
+- Comment mengandung wedding-related keywords (optional)
 - Exclude patterns: `Tags, Like, Follow, jawab, jawaban`
+
+## Instagram Cookies Setup
+
+### How to Get Cookies
+
+1. Open Instagram in browser (logged in as Raisha)
+2. Open DevTools (F12)
+3. Go to Application > Cookies > instagram.com
+4. Export all cookies as JSON
+5. Copy to `cookies` array in scanner
+
+### Required Cookies
+
+| Cookie | Purpose |
+|--------|---------|
+| sessionid | Main session |
+| csrftoken | CSRF protection |
+| datr | Facebook datr |
+| mid | Machine ID |
+| ig_did | Device ID |
+| ps_n/ps_l | Login state |
+| ds_user_id | User ID |
 
 ## Scraping Method
 
 ### Phase 1: Hashtag Exploration
-
-1. Navigate to hashtag page: `https://www.instagram.com/explore/tags/{hashtag}/`
-2. Wait for content load (networkidle)
-3. Scroll 3x to load more posts
-4. Extract post links from grid
+1. Navigate to hashtag page
+2. Wait for content load
+3. Scroll to load more posts
+4. Extract post links
 
 ### Phase 2: Post Analysis
-
-For each post:
-1. Navigate to post
-2. Extract:
-   - Post author (from header)
-   - Caption + hashtags
-   - Date posted
-   - Commenters list
-   - Comment texts
+- Post author
+- Caption + hashtags
+- Date posted
+- Commenters + texts
 
 ### Phase 3: Profile Scraping
-
-For each detected account:
-1. Navigate to profile
-2. Extract:
-   - Bio text
-   - Location (if available)
-   - Followers count
-   - Is private (check for "This account is private")
+- Bio text
+- Location
+- Followers/Following/Posts
+- Recent posts for hashtag extraction
 
 ### Phase 4: Classification
-
-Based on bio analysis:
-- Competitor keywords → Competitors sheet
-- Vendor keywords → Vendors sheet
-- Neither → Check if commenting on wedding posts → Clients sheet
+- Check bio against keywords
+- Route to appropriate sheet
 
 ## Files
 
 ```
 instagram-scrape/
-├── scanner.js           # Main scraper (reads Setting, writes to sheets)
-├── test-sheets.js       # Test Google Sheets connection
-├── setup-client-sheet.js # Setup Client headers
-├── cleanup-sheets.js     # Clean spreadsheet
+├── scanner.js
+├── test-sheets.js
+├── setup-client-sheet.js
+├── setup-vendor-sheet.js
+├── setup-competitor-sheet.js
+├── cleanup-sheets.js
 ├── package.json
 └── node_modules/
 ```
@@ -204,29 +247,22 @@ node scanner.js
 
 ## Limitations
 
-### Cannot Get (Instagram API Restriction)
-
+### Cannot Get
 - ❌ Who viewed profile
-- ❌ Who liked post (unless API access)
+- ❌ Who liked post
 - ❌ Who saved post
-- ❌ Private account followers (unless following)
+- ❌ Private account details (unless following)
 
 ### Can Get
-
 - ✅ Public post data
-- ✅ Public profile info (bio, followers, location)
+- ✅ Public profile info
 - ✅ Comments (public posts)
 - ✅ Hashtags used
-
-## Notes
-
-- Instagram UI changes frequently - selectors may need updates
-- Rate limiting: Add delays between requests
-- Session expiry: Cookies may expire, re-login required
-- Account safety: Don't scrape too aggressively (risk of ban)
 
 ## Update Log
 
 - 2026-07-07: Initial setup with Google Sheets integration
 - Added Competitors/Vendors/Clients detection
 - Service Account authentication working
+- Complete sheet structures defined (Clients, Competitors, Vendors)
+- Row 1 = empty, Row 2 = headers convention established
