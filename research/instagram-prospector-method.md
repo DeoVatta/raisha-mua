@@ -18,10 +18,14 @@ Automated Instagram prospecting tool untuk Raisha MUA (Makeup Artist Semarang). 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    GOOGLE SHEETS                             │
-│  ┌─────────┐ ┌─────────────┐ ┌─────────┐ ┌─────────────┐ │
-│  │ Setting │ │ Competitors │ │ Vendors │ │   Clients    │ │
-│  │ (Config)│ │  (MUA/MUA)  │ │(Other)  │ │(Prospects)  │ │
-│  └─────────┘ └─────────────┘ └─────────┘ └─────────────┘ │
+│  ┌─────────┐ ┌──────────────┐ ┌─────────┐ ┌───────────┐ │
+│  │ Setting │ │VendorHashtags│ │  Compet │ │ Vendors   │ │
+│  │ (Config)│ │ (Hashtags)   │ │  (MUA)  │ │(Services) │ │
+│  └─────────┘ └──────────────┘ └─────────┘ └───────────┘ │
+│  ┌───────────┐                                                │
+│  │ Clients  │                                                │
+│  │(Prospects)                                                │
+│  └───────────┘                                                │
 └──────────────────────────┬──────────────────────────────────┘
                            │ Read/Write
                            ▼
@@ -39,7 +43,7 @@ Automated Instagram prospecting tool untuk Raisha MUA (Makeup Artist Semarang). 
 
 ## Google Sheets Integration
 
-### Service Account Setup
+### Service Account
 
 **Service Account Email:**
 ```
@@ -48,11 +52,9 @@ claude@cogent-range-458804-r9.iam.gserviceaccount.com
 
 **Spreadsheet ID:** `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
 
-Share spreadsheet to service account email with Editor access.
-
 ## Spreadsheet Structure
 
-All data sheets use: **Row 1 = empty, Row 2 = headers, Row 3+ = data**
+All data sheets: **Row 1 = empty, Row 2 = headers, Row 3+ = data**
 
 ### Setting Sheet
 
@@ -71,75 +73,129 @@ Configuration parameters (read at runtime by scanner).
 | comment_length_min | 5 | Min comment characters |
 | exclude_patterns | Tags,Like,Follow | Patterns to exclude |
 
+### VendorHashtags Sheet
+
+Hashtags yang ditemukan dari vendor captions. User review dan set Status OK/NO untuk filter next scan.
+
+| Column | Description |
+|--------|-------------|
+| No | Auto-number |
+| Hashtag | Hashtag yang ditemukan |
+| Source Vendor | Vendor yang pakai hashtag ini |
+| Times Found | Berapa kali ditemukan |
+| Last Found | Tanggal terakhir ditemukan |
+| **Status** | **OK** (useful) / **NO** (not useful) / blank (belum review) |
+| Notes | Catatan manual |
+
+**Status Values:**
+- `OK` = hashtag useful, scan next time
+- `NO` = hashtag not useful, skip
+- blank = belum di-review
+
 ### Clients Sheet
 
 Potential customers (people who commented on posts, not vendors).
 
-**Columns (Row 1 empty, Row 2 headers):**
-
-| # | Column | Source |
-|---|--------|--------|
-| A | (empty) | - |
-| B | Profile | Instagram URL |
-| C | Username | Extracted from URL |
-| D | Source | Post URL where commented |
-| E | Comment | Comment text |
-| F | Date | Comment date |
-| G | Location | From bio (if available) |
-| H | Private | Yes/No |
-| I | Followers | Follower count |
-| J | Bio | Full bio text |
-| K | Status | Potential Client / Contacted / etc |
-| L | Notes | Manual notes |
+| Column | Source |
+|--------|--------|
+| Profile | Instagram URL |
+| Username | Extracted from URL |
+| Source | Post URL where commented |
+| Comment | Comment text |
+| Date | Comment date |
+| Location | From bio (if available) |
+| Private | Yes/No |
+| Followers | Follower count |
+| Bio | Full bio text |
+| Status | Potential Client / Contacted / etc |
+| Notes | Manual notes |
 
 ### Competitors Sheet
 
 MUA/Makeup accounts (direct competitors).
 
-**Columns (Row 1 empty, Row 2 headers):**
-
-| # | Column | Source |
-|---|--------|--------|
-| A | No | Auto-number |
-| B | MUA | Display name from bio |
-| C | Profile | Instagram URL |
-| D | Username | @username |
-| E | Location | City from bio |
-| F | Province | From Setting |
-| G | Followers | Follower count |
-| H | Following | Following count |
-| I | Posts | Total posts |
-| J | Last Post | Most recent post date |
-| K | Engagement | Calculated (likes+comments)/followers |
-| L | Hashtags | Hashtags they use |
-| M | Bio | Full bio |
-| N | Status | Open/Closed/Pending |
-| O | Notes | Manual notes |
+| Column | Description |
+|--------|-------------|
+| No | Auto-number |
+| MUA | Display name from bio |
+| Profile | Instagram URL |
+| Username | @username |
+| Location | City from bio |
+| Province | From Setting |
+| Followers | Follower count |
+| Following | Following count |
+| Posts | Total posts |
+| Last Post | Most recent post date |
+| Engagement | Calculated |
+| Hashtags | Hashtags they use |
+| Bio | Full bio |
+| Status | Open/Closed/Pending |
+| Notes | Manual notes |
 
 ### Vendors Sheet
 
 Other wedding services (partnership opportunities).
 
-**Columns (Row 1 empty, Row 2 headers):**
+| Column | Description |
+|--------|-------------|
+| No | Auto-number |
+| Vendor | Display name |
+| Profile | Instagram URL |
+| Username | @username |
+| Category | Detected (Fotografer/Catering/etc) |
+| Location | City from bio |
+| Province | From Setting |
+| Followers | Follower count |
+| Following | Following count |
+| Posts | Total posts |
+| Last Post | Most recent post date |
+| Engagement | Calculated |
+| Hashtags | Hashtags they use |
+| Bio | Full bio |
+| Status | Open/Closed/Pending |
+| Notes | Manual notes |
 
-| # | Column | Source |
-|---|--------|--------|
-| A | No | Auto-number |
-| B | Vendor | Display name |
-| C | Profile | Instagram URL |
-| D | Username | @username |
-| E | Category | Detected (Fotografer/Catering/etc) |
-| F | Location | City from bio |
-| G | Province | From Setting |
-| H | Followers | Follower count |
-| I | Following | Following count |
-| J | Posts | Total posts |
-| K | Last Post | Most recent post date |
-| L | Engagement | Calculated |
-| M | Hashtags | Hashtags they use |
-| N | Bio | Full bio |
-| O | Status | Open/Closed/Pending |
-| P | Notes | Manual notes |
+## Scraping Flow
+
+### Vendor Scan Flow
+
+```
+HASHTAGS (VendorHashtags with Status=OK)
+        │
+        ▼
+┌───────────────────────────────────────┐
+│ SCRAPE POSTS from hashtag               │
+│ Extract: post links + authors          │
+└────────────────────┬──────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────┐
+│ VISIT POST AUTHOR PROFILE              │
+│ Extract: bio, location, followers      │
+└────────────────────┬──────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────┐
+│ CHECK AREA + KEYWORDS                 │
+│                                         │
+│ • Bio contains vendor keywords?         │
+│ • Location in province/city?            │
+│ • YA → SAVE VENDOR                    │
+│ • TIDAK → skip                        │
+└────────────────────┬──────────────────┘
+                     │
+                     ▼
+┌───────────────────────────────────────┐
+│ EXTRACT HASHTAGS FROM CAPTION          │
+│ Add/Update to VendorHashtags sheet    │
+│ (User reviews Status OK/NO later)     │
+└───────────────────────────────────────┘
+```
+
+### Notes
+- Vendor scan does NOT include client/comment extraction
+- Only extract: post authors, bios, locations, hashtags
+- Area filter: province + city must match Setting
 
 ## Detection Logic
 
@@ -200,42 +256,19 @@ const VENDOR_KEYWORDS = [
 | ps_n/ps_l | Login state |
 | ds_user_id | User ID |
 
-## Scraping Method
-
-### Phase 1: Hashtag Exploration
-1. Navigate to hashtag page
-2. Wait for content load
-3. Scroll to load more posts
-4. Extract post links
-
-### Phase 2: Post Analysis
-- Post author
-- Caption + hashtags
-- Date posted
-- Commenters + texts
-
-### Phase 3: Profile Scraping
-- Bio text
-- Location
-- Followers/Following/Posts
-- Recent posts for hashtag extraction
-
-### Phase 4: Classification
-- Check bio against keywords
-- Route to appropriate sheet
-
 ## Files
 
 ```
 instagram-scrape/
-├── scanner.js
-├── test-sheets.js
-├── setup-client-sheet.js
-├── setup-vendor-sheet.js
-├── setup-competitor-sheet.js
-├── cleanup-sheets.js
-├── package.json
-└── node_modules/
+├── scanner.js                    # Main scraper
+├── test-sheets.js               # Test Sheets connection
+├── setup-client-sheet.js       # Setup Client headers
+├── setup-vendor-sheet.js       # Setup Vendor headers
+├── setup-competitor-sheet.js    # Setup Competitor headers
+├── create-vendor-hashtags-sheet.js  # Create VendorHashtags
+├── populate-initial-hashtags.js  # Populate initial hashtags
+├── cleanup-sheets.js            # Clean all sheets
+└── package.json
 ```
 
 ## Running the Scanner
@@ -264,5 +297,7 @@ node scanner.js
 - 2026-07-07: Initial setup with Google Sheets integration
 - Added Competitors/Vendors/Clients detection
 - Service Account authentication working
-- Complete sheet structures defined (Clients, Competitors, Vendors)
-- Row 1 = empty, Row 2 = headers convention established
+- Complete sheet structures defined
+- Added VendorHashtags sheet with Status OK/NO for manual filtering
+- Vendor scan flow documented (separate from client scan)
+- Initial hashtags populated from Setting
