@@ -20,10 +20,11 @@ import {
     closeBrowser,
     enrichPostFromApi,
     enrichProfileFromPage,
+    enrichPostsBatch,
     scrapeProfilePosts,
     scrapeHashtags,
 } from './src/scraper.js';
-import { enrichProfile } from './src/enricher.js';
+import { enrichProfile, enrichProfilesBatch } from './src/enricher.js';
 import { extractClientsFromPosts } from './src/comments.js';
 import {
     initSheets,
@@ -100,7 +101,7 @@ async function run() {
         console.log('\n[INFO] No new posts. Try updating hashtags.');
     }
 
-    // 5. Phase 2: Profile Enrichment + Classify
+    // 5. Phase 2: Profile Enrichment + Classify (parallel batches)
     console.log('\n' + '-'.repeat(60));
     console.log('[PHASE 2] PROFILE ENRICHMENT + CLASSIFICATION');
     console.log('-'.repeat(60));
@@ -108,24 +109,12 @@ async function run() {
     const MAX_PHASE2 = 20;
     const postsToProcess = newPosts.slice(0, MAX_PHASE2);
 
-    for (const post of postsToProcess) {
-        if (state.profilesScraped >= MAX_PHASE2) {
-            console.log('\n[LIMIT] Phase 2 max reached');
-            break;
-        }
+    // Batch enrichment: 2 profiles concurrently, 3s between batches
+    const enrichedProfiles = await enrichProfilesBatch(postsToProcess, MAX_PHASE2, 2, 3000);
 
-        if (state.visited.has(post.username)) continue;
-        state.visited.add(post.username);
-        state.profilesScraped++;
-
-        console.log(`\n[${state.profilesScraped}] Processing @${post.username}`);
-
-        const profile = await enrichProfile(post.username, post);
-
-        if (!profile) {
-            state.errors++;
-            continue;
-        }
+    for (const profile of enrichedProfiles) {
+        if (!profile) continue;
+        state.visited.add(profile.username);
 
         // Queue collabs + mentions for discovery
         const discovered = new Set([
@@ -144,6 +133,7 @@ async function run() {
         await writeProfile(profile, state.found[profile.type]);
         state.found[profile.type].add(profile.username);
         state.newProfiles++;
+        state.profilesScraped++;
     }
 
     // 6. Phase 3: Discovery (collab + mention deep dive)

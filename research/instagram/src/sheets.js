@@ -31,8 +31,9 @@ const VENDOR_HEADER = [
 ];
 
 // Column layout: A=empty, B=Hashtag, C=Source, D=Count, E=Date Added, F=Status
+// New hashtags discovered by scraper → column G:H:I (dedicated section)
 const HASHTAG_HEADER = [
-    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status'
+    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status', 'New Hashtag', 'Source', 'Date Added'
 ];
 
 const CLIENT_HEADER = [
@@ -87,7 +88,7 @@ async function writeHeaders() {
         });
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID,
-            range: 'VendorHashtags!A2:F2',
+            range: 'VendorHashtags!A2:I2',
             valueInputOption: 'RAW',
             resource: { values: [HASHTAG_HEADER] }
         });
@@ -160,39 +161,54 @@ async function readHashtags() {
     return hashtags;
 }
 
-// Track hashtags written this run to avoid duplicates in same session
+// Track hashtags written this session to avoid duplicates
 const _seenHashtags = new Set();
+
+// Generic/useless hashtags to ignore
+const _genericHashtags = new Set([
+    'instagram', 'instagood', 'instadaily', 'instapic', 'instalike', 'likeforlike',
+    'like4like', 'likeforlikes', 'followme', 'followforfollow', 'follow4follow',
+    'fyp', 'foryou', 'foryoupage', 'viral', 'explore', 'explorepage',
+    'reels', 'reelsinstagram', 'trending', 'trendingnow', 'video',
+    'photooftheday', 'picoftheday', 'instamood', 'instacool', 'instafashion',
+    'ootd', 'style', 'fashion', 'beautiful', 'happy', 'love',
+    'cute', 'beauty', 'makeup', 'selfie', 'girl', 'women',
+    'photography', 'photo', 'art', 'artist', 'nature', 'travel',
+    'lifestyle', 'motivation', 'inspiration', 'goals', 'life',
+    'moderne', 'baby', 'kids', 'family', 'home', 'decoration',
+]);
 
 async function writeNewHashtag(hashtag, sourceUsername) {
     if (!sheetsClient || !hashtag) return;
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
     if (_seenHashtags.has(clean)) return;
+    if (_genericHashtags.has(clean)) return;
 
-    const rows = await readRange('VendorHashtags!A:A');
-    // Check if already in sheet (hashtag in column B = index 1)
+    // Read full range A:I to check for existing entries
+    const rows = await readRange('VendorHashtags!A1:I500');
+    // Column G (index 6) = New Hashtag
     for (const row of rows) {
-        if (row[1] && row[1].toLowerCase() === clean) {
+        if (row[6] && row[6].toLowerCase() === clean) {
             _seenHashtags.add(clean);
             return;
         }
     }
 
-    // Count existing occurrences for this hashtag (column D = index 3)
-    let count = 0;
-    for (const row of rows) {
-        if (row[1] && row[1].toLowerCase() === clean) {
-            count = parseInt(row[3]) || 0;
+    // Find next empty row in column G, starting from row 3 (row 2 = header)
+    let writeRow = rows.length + 1;
+    for (let i = 2; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[6]) {
+            writeRow = i + 1;
             break;
         }
     }
 
-    const rowNum = rows.length + 1;
     const today = new Date().toISOString().split('T')[0];
-
-    // Column B=Hashtag, C=Source, D=Count, E=Date, F=Status
-    const values = [[clean, `@${sourceUsername}`, count + 1, today, 'OK']];
-    await writeRange(`VendorHashtags!B${rowNum}:F${rowNum}`, values);
+    // Column G=New Hashtag, H=Source, I=Date Added
+    const values = [[clean, `@${sourceUsername}`, today]];
+    await writeRange(`VendorHashtags!G${writeRow}:I${writeRow}`, values);
     _seenHashtags.add(clean);
     console.log(`  [NEW HASHTAG] #${clean}`);
 }

@@ -152,36 +152,42 @@ async function extractClientsFromPost(postUrl) {
 }
 
 /**
- * Extract potential clients from a list of posts.
+ * Extract potential clients from a list of posts (parallel batches).
  */
-async function extractClientsFromPosts(posts) {
+async function extractClientsFromPosts(posts, concurrency = 3, batchDelayMs = 3000) {
     const allClients = [];
     const seen = new Set();
 
-    for (const post of posts) {
-        const url = post.postUrl || post.url;
-        const { clients, postData, totalComments } = await extractClientsFromPost(url);
+    for (let i = 0; i < posts.length; i += concurrency) {
+        const batch = posts.slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(post => {
+            const url = post.postUrl || post.url;
+            return extractClientsFromPost(url);
+        }));
 
-        if (clients.length > 0) {
-            console.log(`  [COMMENTS] @${postData?.username}: ${totalComments} total, ${clients.length} potential clients`);
+        for (const result of batchResults) {
+            const { clients, postData, totalComments } = result;
+            if (clients.length > 0) {
+                console.log(`  [COMMENTS] @${postData?.username}: ${totalComments} total, ${clients.length} potential clients`);
+            }
+            for (const client of clients) {
+                const key = client.username.toLowerCase();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                allClients.push({
+                    username: client.username,
+                    text: client.text,
+                    source: `@${postData?.username || 'unknown'}`,
+                    via: 'comment',
+                    hashtags: postData?.hashtags || new Set(),
+                    location: extractLocation(postData?.hashtags),
+                });
+            }
         }
 
-        for (const client of clients) {
-            const key = client.username.toLowerCase();
-            if (seen.has(key)) continue;
-            seen.add(key);
-
-            allClients.push({
-                username: client.username,
-                text: client.text,
-                source: `@${postData?.username || 'unknown'}`,
-                via: 'comment',
-                hashtags: postData?.hashtags || new Set(),
-                location: extractLocation(postData?.hashtags),
-            });
+        if (i + concurrency < posts.length) {
+            await sleep(batchDelayMs);
         }
-
-        await sleep(REQUEST_DELAY * 500);
     }
 
     return allClients.sort((a, b) => b.clientScore - a.clientScore);

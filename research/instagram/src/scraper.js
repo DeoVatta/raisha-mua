@@ -241,54 +241,100 @@ function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
-// ============== POST ENRICHMENT (API) ==============
+// ============== POST ENRICHMENT (API) — with batch concurrency ==============
 async function enrichPostFromApi(postUrl) {
     // Extract shortcode
     const shortcode = postUrl.split('/p/')[1]?.replace('/', '') || '';
     if (!shortcode) return null;
 
     const mediaId = decodeShortcode(shortcode);
-    await sleep(REQUEST_DELAY * 1000);
-
+    // No per-request sleep — batch controller handles rate limiting
     const res = await igFetch(`https://i.instagram.com/api/v1/media/${mediaId}/info/`);
     if (res.status !== 200) {
         console.log(`  [API ERROR] ${shortcode}: ${res.status}`);
         return null;
     }
 
-    const data = JSON.parse(res.body);
-    const item = data.items?.[0];
-    if (!item) return null;
+    try {
+        const data = JSON.parse(res.body);
+        const item = data.items?.[0];
+        if (!item) return null;
 
-    const caption = item.caption?.text || '';
-    const hashtags = (caption.match(/#\w+/g) || []).map(h => h.toLowerCase());
-    const mentions = (caption.match(/@([a-zA-Z0-9._]+)/g) || [])
-        .map(m => m.slice(1).toLowerCase());
+        const caption = item.caption?.text || '';
+        const hashtags = (caption.match(/#\w+/g) || []).map(h => h.toLowerCase());
+        const mentions = (caption.match(/@([a-zA-Z0-9._]+)/g) || [])
+            .map(m => m.slice(1).toLowerCase());
 
-    // Collabs from tagged users
-    const collabs = (item.usertags?.in || [])
-        .map(t => t.user?.username)
-        .filter(Boolean);
+        // Collabs from tagged users
+        const collabs = (item.usertags?.in || [])
+            .map(t => t.user?.username)
+            .filter(Boolean);
 
-    // Remove author from mentions
-    const authorUsername = item.user?.username?.toLowerCase() || '';
-    const filteredMentions = mentions.filter(m => m !== authorUsername);
+        // Remove author from mentions
+        const authorUsername = item.user?.username?.toLowerCase() || '';
+        const filteredMentions = mentions.filter(m => m !== authorUsername);
 
-    return {
-        username: item.user?.username || '',
-        displayName: item.user?.full_name || '',
-        userPk: item.user?.pk || '',
-        likes: item.like_count || 0,
-        comments: item.comment_count || 0,
-        caption,
-        hashtags,
-        mentions: filteredMentions,
-        collabs,
-        date: new Date(item.taken_at * 1000).toISOString(),
-        postUrl: `https://www.instagram.com/p/${shortcode}/`,
-        shortcode,
-        mediaId,
-    };
+        return {
+            username: item.user?.username || '',
+            displayName: item.user?.full_name || '',
+            userPk: item.user?.pk || '',
+            likes: item.like_count || 0,
+            comments: item.comment_count || 0,
+            caption,
+            hashtags,
+            mentions: filteredMentions,
+            collabs,
+            date: new Date(item.taken_at * 1000).toISOString(),
+            postUrl: `https://www.instagram.com/p/${shortcode}/`,
+            shortcode,
+            mediaId,
+        };
+    } catch (e) {
+        console.log(`  [API PARSE ERROR] ${shortcode}: ${e.message}`);
+        return null;
+    }
+}
+
+/**
+ * Enrich multiple posts in parallel batches.
+ * @param {string[]} urls - Post URLs
+ * @param {number} concurrency - Max concurrent requests per batch
+ * @param {number} batchDelayMs - Delay between batches (ms)
+ */
+async function enrichPostsBatch(urls, concurrency = 5, batchDelayMs = 2000) {
+    const results = [];
+    for (let i = 0; i < urls.length; i += concurrency) {
+        const batch = urls.slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(url => enrichPostFromApi(url)));
+        results.push(...batchResults);
+        if (i + concurrency < urls.length) {
+            await sleep(batchDelayMs);
+        }
+    }
+    return results.filter(Boolean);
+}
+
+/**
+ * Fetch ALL comments for a post via GraphQL pagination.
+ * @param {string} shortcode
+ * @param {number} maxComments
+ */
+async function fetchAllPostCommentsGraphQL(shortcode, maxComments = 100) {
+    const allComments = [];
+    let after = '';
+    let page = 0;
+    const maxPages = 10;
+
+    while (page < maxPages && allComments.length < maxComments) {
+        const { comments, pageInfo } = await fetchPostCommentsGraphQL(shortcode, after);
+        if (comments.length === 0) break;
+        allComments.push(...comments);
+        if (!pageInfo.hasNextPage || !pageInfo.endCursor) break;
+        after = pageInfo.endCursor;
+        page++;
+    }
+
+    return allComments.slice(0, maxComments);
 }
 
 // ============== PROFILE ENRICHMENT (Playwright) ==============
@@ -459,15 +505,8 @@ async function scrapeHashtag(hashtag, maxPosts = 50) {
     console.log(`  Found ${postUrls.length} post URLs (${scrollCount} scrolls)`);
     if (postUrls.length === 0) return [];
 
-    // Enrich each post via API
-    const posts = [];
-    for (const url of postUrls) {
-        const data = await enrichPostFromApi(url);
-        if (data && data.username) {
-            posts.push(data);
-        }
-    }
-
+    // Enrich all posts in parallel batches (5 concurrent, 2s between batches)
+    const posts = await enrichPostsBatch(postUrls, 5, 2000);
     console.log(`  Enriched ${posts.length} posts`);
     return posts;
 }
@@ -497,6 +536,7 @@ export {
     initBrowser,
     closeBrowser,
     enrichPostFromApi,
+    enrichPostsBatch,
     enrichProfileFromPage,
     scrapeProfilePosts,
     scrapeHashtag,

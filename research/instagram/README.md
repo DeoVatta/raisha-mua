@@ -176,3 +176,17 @@ Get cookies: Browser DevTools → Application → Cookies → instagram.com
 - Session cookies expire — re-login if 401/403 errors appear
 - Phase 3 has its own budget (`MAX_DISCOVERY_PROFILES=30`) separate from Phase 2 — vendors and clients discovered via collab/mention paths are saved to their correct sheets
 - Hashtag search uses scroll lazy-load (up to 50 posts, 10 scrolls max) — more posts = better discovery coverage
+
+## Performance
+
+Pipeline uses **parallel batch processing** for speed:
+
+| Operation | Concurrency | Batch Delay |
+|-----------|-------------|-------------|
+| Post enrichment (API) | 5 concurrent | 2s |
+| Profile enrichment | 2 concurrent | 3s |
+| Comment extraction | 3 concurrent | 3s |
+
+Estimated run time: **10–20 minutes** (vs hours with sequential processing).
+
+Generic hashtags (`#fyp`, `#instagood`, `#reels`, etc.) are filtered automatically and not written to VendorHashtags.

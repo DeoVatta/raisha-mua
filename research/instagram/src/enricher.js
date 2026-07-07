@@ -8,6 +8,7 @@
 import {
     enrichProfileFromPage,
     enrichPostFromApi,
+    enrichPostsBatch,
     scrapeProfilePosts,
     initBrowser,
 } from './scraper.js';
@@ -17,6 +18,37 @@ import { writeNewHashtag } from './sheets.js';
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
+}
+
+/**
+ * Enrich multiple profiles in parallel batches (for Phase 2 bulk processing).
+ * @param {Array} posts - Array of post objects
+ * @param {number} maxProfiles - Max profiles to process
+ * @param {number} concurrency - Max concurrent browser sessions
+ * @param {number} batchDelayMs - Delay between batches (ms)
+ */
+async function enrichProfilesBatch(posts, maxProfiles, concurrency = 2, batchDelayMs = 3000) {
+    const results = [];
+    const unique = [];
+    const seen = new Set();
+    for (const p of posts) {
+        if (!seen.has(p.username)) {
+            seen.add(p.username);
+            unique.push(p);
+        }
+        if (unique.length >= maxProfiles) break;
+    }
+
+    for (let i = 0; i < unique.length; i += concurrency) {
+        const batch = unique.slice(i, i + concurrency);
+        console.log(`  [BATCH] Enriching ${batch.length} profiles (${i + 1}–${i + batch.length})`);
+        const batchResults = await Promise.all(batch.map(p => enrichProfile(p.username, p)));
+        results.push(...batchResults.filter(Boolean));
+        if (i + concurrency < unique.length) {
+            await sleep(batchDelayMs);
+        }
+    }
+    return results;
 }
 
 // ============== ENRICH PROFILE ==============
@@ -60,24 +92,15 @@ async function enrichProfile(username, postData = null) {
             const profilePostUrls = await scrapeProfilePosts(username, 12);
             console.log(`  [POSTS] Found ${profilePostUrls.length} posts on profile`);
 
-            // Enrich a few recent posts for extra collabs/mentions
-            const postsToEnrich = profilePostUrls.slice(0, 6);
-            let extraHashtags = [];
-            let extraMentions = [];
-            let extraCollabs = [];
-
-            for (const url of postsToEnrich) {
-                const pd = await enrichPostFromApi(url);
-                if (pd) {
-                    extraHashtags.push(...pd.hashtags);
-                    extraMentions.push(...pd.mentions);
-                    extraCollabs.push(...pd.collabs);
+            // Enrich posts in parallel batches (3 concurrent, 2s between batches)
+            if (profilePostUrls.length > 0) {
+                const enrichedPosts = await enrichPostsBatch(profilePostUrls.slice(0, 6), 3, 2000);
+                for (const pd of enrichedPosts) {
+                    pd.hashtags.forEach(h => profile.hashtags.add(h));
+                    pd.mentions.forEach(m => profile.mentions.add(m));
+                    pd.collabs.forEach(c => profile.collabs.add(c));
                 }
             }
-
-            extraHashtags.forEach(h => profile.hashtags.add(h));
-            extraMentions.forEach(m => profile.mentions.add(m));
-            extraCollabs.forEach(c => profile.collabs.add(c));
         } catch (e) {
             console.log(`  [WARN] Could not scrape profile posts @${username}: ${e.message}`);
         }
@@ -126,4 +149,4 @@ async function enrichProfile(username, postData = null) {
 }
 
 // ============== EXPORTS ==============
-export { enrichProfile, initBrowser };
+export { enrichProfile, enrichProfilesBatch, initBrowser };
