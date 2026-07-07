@@ -100,11 +100,11 @@ let sheetsClient = null;
 const nextRow = { Competitors: 3, Vendor: 3, Client: 3 };
 
 async function _loadNextRowFromSetting() {
-    const rows = await readRange('Setting!A1:B50');
+    const rows = await readRange('Setting!A1:B55');
     for (const row of rows) {
-        if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || 3;
-        if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || 3;
-        if (row[0] === 'nextrow_client') nextRow.Client = parseInt(row[1]) || 3;
+        if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || nextRow.Competitors;
+        if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || nextRow.Vendor;
+        if (row[0] === 'nextrow_client') nextRow.Client = parseInt(row[1]) || nextRow.Client;
     }
 }
 
@@ -292,22 +292,16 @@ async function writeRange(range, values) {
 }
 
 async function getNextRow(sheetName) {
-    if (!nextRow[sheetName]) {
-        // Scan ALL columns to find first truly empty row (not just column A)
-        const rows = await readRange(`${sheetName}!A:Z`);
-        for (let i = 1; i <= rows.length + 1; i++) {
-            const row = rows[i - 1];
-            const hasContent = row && row.some(c => c && String(c).trim() !== '');
-            if (!hasContent) {
-                nextRow[sheetName] = i + 1; // array pos i-1 → row i+1
-                break;
-            }
-        }
-        if (!nextRow[sheetName]) {
-            nextRow[sheetName] = rows.length + 2;
+    // Always scan fresh — never cache, so concurrent Phase 2+3 writes can't overwrite each other
+    const rows = await readRange(`${sheetName}!A:Z`);
+    for (let i = 1; i <= rows.length + 1; i++) {
+        const row = rows[i - 1];
+        const hasContent = row && row.some(c => c && String(c).trim() !== '');
+        if (!hasContent) {
+            return i + 1;
         }
     }
-    return nextRow[sheetName];
+    return rows.length + 2;
 }
 
 async function writeProfile(profile, existingUsernames) {
@@ -396,7 +390,7 @@ async function writeProfile(profile, existingUsernames) {
     }
 
     await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
-    nextRow[sheetName] = rowNum + 1; // increment for next write
+    nextRow[sheetName] = rowNum + 1; // in-memory cache for same-session performance
     existingUsernames.add(profile.username);
     await _saveNextRowToSetting();
     console.log(`  [SAVED] @${profile.username} to ${sheetName} (row ${rowNum})`);
