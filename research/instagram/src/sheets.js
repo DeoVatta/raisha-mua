@@ -30,8 +30,9 @@ const VENDOR_HEADER = [
     'Hashtags', 'Bio', 'Status', 'Collabs', 'Date'
 ];
 
+// Column layout: A=empty, B=Hashtag, C=Source, D=Count, E=Date Added, F=Status
 const HASHTAG_HEADER = [
-    'Hashtag', 'Category', 'Status', 'Source Username', 'Date Added'
+    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status'
 ];
 
 const CLIENT_HEADER = [
@@ -86,7 +87,7 @@ async function writeHeaders() {
         });
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID,
-            range: 'VendorHashtags!A2:E2',
+            range: 'VendorHashtags!A2:F2',
             valueInputOption: 'RAW',
             resource: { values: [HASHTAG_HEADER] }
         });
@@ -147,11 +148,12 @@ async function readRange(range) {
 }
 
 async function readHashtags() {
-    const rows = await readRange('VendorHashtags!A1:G500');
+    // Column B (index 1) = Hashtag, Column F (index 5) = Status
+    const rows = await readRange('VendorHashtags!A1:F500');
     const hashtags = [];
     for (const row of rows.slice(2)) {
-        if (row.length >= 6 && row[0] && row[2] === 'OK') {
-            hashtags.push(row[0]);
+        if (row.length >= 6 && row[1] && row[5] === 'OK') {
+            hashtags.push(row[1]);
         }
     }
     console.log(`[SHEETS] Loaded ${hashtags.length} approved hashtags`);
@@ -168,34 +170,31 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (_seenHashtags.has(clean)) return;
 
     const rows = await readRange('VendorHashtags!A:A');
-    // Check if already in sheet
+    // Check if already in sheet (hashtag in column B = index 1)
     for (const row of rows) {
-        if (row[0] && row[0].toLowerCase() === clean) {
+        if (row[1] && row[1].toLowerCase() === clean) {
             _seenHashtags.add(clean);
             return;
+        }
+    }
+
+    // Count existing occurrences for this hashtag (column D = index 3)
+    let count = 0;
+    for (const row of rows) {
+        if (row[1] && row[1].toLowerCase() === clean) {
+            count = parseInt(row[3]) || 0;
+            break;
         }
     }
 
     const rowNum = rows.length + 1;
     const today = new Date().toISOString().split('T')[0];
 
-    // Determine category from hashtag text
-    let category = 'General';
-    const t = clean.toLowerCase();
-    if (t.match(/muasemarang|semarangmua|semarangmakeup|muajateng|jawatengah|muajatim|muabuwana|muabol|muamaluku|muasultra|muasurabaya|muabandung|muajakarta|muabol|muaselatan|muabarat|muatimur/)) category = 'Location';
-    else if (t.match(/muajepara|muakudus|muapati|muademak|muategal|muabatang|muabrebes|muakendal|muarembang|muablora|muasalatiga|muabawen|muaboe|muaboja|muabuwana/)) category = 'Location';
-    else if (t.match(/bridalmakeup|bridalmuas|engangement|prewedding|engagementphotography|resepsi|weddingplanner|weddingorganizer/)) category = 'Wedding';
-    else if (t.match(/muasolo|surakarta|muayogyakarta|muajogja|muajogjakarta|muaklaten|muasalatiga|muabojonegara/)) category = 'Location';
-    else if (t.match(/wisuda|graduationmakeup|makeupwisuda|makeupgraduation/)) category = 'Graduation';
-    else if (t.match(/makeupparty|partymakeup|glammakeup|softglam|naturalmakeup/)) category = 'Party';
-    else if (t.match(/hair|hairstylist|hairdo|hairdo|updo|braid/)) category = 'Hair';
-    else if (t.match(/nail|nails|lasht|eyelash|brow/)) category = 'Beauty';
-    else if (t.match(/mua_|_\.mua|\.mua$|muahid|by_mua/)) category = 'MUA';
-
-    const values = [[clean, category, 'OK', `@${sourceUsername}`, today]];
-    await writeRange(`VendorHashtags!A${rowNum}:E${rowNum}`, values);
+    // Column B=Hashtag, C=Source, D=Count, E=Date, F=Status
+    const values = [[clean, `@${sourceUsername}`, count + 1, today, 'OK']];
+    await writeRange(`VendorHashtags!B${rowNum}:F${rowNum}`, values);
     _seenHashtags.add(clean);
-    console.log(`  [NEW HASHTAG] #${clean} → VendorHashtags (${category})`);
+    console.log(`  [NEW HASHTAG] #${clean}`);
 }
 
 async function readVisitedProfiles() {

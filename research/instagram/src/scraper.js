@@ -199,6 +199,8 @@ async function initBrowser() {
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
+            '--disable-proxy-client-cert-request',
+            '--disable-features=DnsOverHttpsPinger',
         ]
     });
 
