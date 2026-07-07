@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { REQUEST_DELAY, NAVIGATE_DELAY } from './config.js';
+import { ensureAuth } from './instagram-auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -189,6 +190,8 @@ function makeStealthContext() {
 async function initBrowser() {
     if (_browser) return;
 
+    // Ensure auth: validate existing cookies or auto-login
+    await ensureAuth();
     loadCookies();
     console.log('[BROWSER] Launching...');
     _browser = await chromium.launch({
@@ -314,30 +317,162 @@ async function enrichPostsBatch(urls, concurrency = 5, batchDelayMs = 2000) {
     return results.filter(Boolean);
 }
 
+// ============== POST ENRICHMENT (Playwright HTML) — fallback when API 302 ==============
 /**
- * Fetch ALL comments for a post via GraphQL pagination.
- * @param {string} shortcode
- * @param {number} maxComments
+ * Extract post data directly from HTML page via Playwright.
+ * Uses the browser session (which is still valid), bypassing the Mobile API.
  */
-async function fetchAllPostCommentsGraphQL(shortcode, maxComments = 100) {
-    const allComments = [];
-    let after = '';
-    let page = 0;
-    const maxPages = 10;
+async function enrichPostFromBrowser(postUrl) {
+    if (!_page) await initBrowser();
 
-    while (page < maxPages && allComments.length < maxComments) {
-        const { comments, pageInfo } = await fetchPostCommentsGraphQL(shortcode, after);
-        if (comments.length === 0) break;
-        allComments.push(...comments);
-        if (!pageInfo.hasNextPage || !pageInfo.endCursor) break;
-        after = pageInfo.endCursor;
-        page++;
+    const shortcode = postUrl.split('/p/')[1]?.replace('/', '') || '';
+    if (!shortcode) return null;
+
+    await _page.goto(postUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    await _page.waitForTimeout(2500);
+
+    const bodyLen = await _page.evaluate(() => document.body.innerHTML.length);
+    if (bodyLen < 200) {
+        console.log(`  [BROWSER WARN] Empty page: ${shortcode}`);
+        return null;
     }
 
-    return allComments.slice(0, maxComments);
+    // Extract from __NEXT_DATA__ JSON (same technique as todshop/radjatopup)
+    const nextDataRaw = await _page.evaluate(() => {
+        const el = document.getElementById('__NEXT_DATA__');
+        return el ? el.textContent : null;
+    });
+
+    let username = '', displayName = '', fullText = '', likes = 0, comments = 0, hashtags = [], mentions = [], takenAt = null;
+
+    if (nextDataRaw) {
+        try {
+            const nd = JSON.parse(nextDataRaw);
+            // Walk the GraphQL shortcode_media path
+            const media = nd.props?.pageProps?.data?.shortcode_media
+                || nd.props?.pageProps?.graphql?.shortcode_media;
+            if (media) {
+                username = media.user?.username || '';
+                displayName = media.user?.full_name || '';
+                fullText = media.edge_media_to_caption?.edges?.[0]?.node?.text || '';
+                likes = media.edge_media_preview_like?.count
+                    || media.edge_liked_by?.count
+                    || media.likes?.count || 0;
+                comments = media.edge_media_to_parent_comment?.count
+                    || media.comments?.count || 0;
+                takenAt = media.taken_at_timestamp || null;
+
+                // Hashtags + mentions from caption
+                hashtags = (fullText.match(/#\w+/g) || []).map(h => h.toLowerCase());
+                mentions = (fullText.match(/@([a-zA-Z0-9._]+)/g) || [])
+                    .map(m => m.slice(1).toLowerCase());
+
+                // Tagged users (collabs)
+                const tagged = media.edge_media_to_tagged_user?.edges || [];
+                const collabs = tagged.map(t => t.node?.user?.username).filter(Boolean);
+
+                const authorUsername = username.toLowerCase();
+                const filteredMentions = mentions.filter(m => m !== authorUsername);
+
+                return {
+                    username,
+                    displayName,
+                    userPk: media.user?.id || '',
+                    likes,
+                    comments,
+                    caption: fullText,
+                    hashtags,
+                    mentions: filteredMentions,
+                    collabs,
+                    date: takenAt ? new Date(takenAt * 1000).toISOString() : null,
+                    postUrl,
+                    shortcode,
+                    mediaId: '',
+                };
+            }
+        } catch (e) {
+            // Fall through to body parse
+        }
+    }
+
+    // Fallback: extract from meta tags and body text
+    const ogTitle = await _page.evaluate(() => document.querySelector('meta[property="og:title"]')?.content || '');
+    const ogDesc = await _page.evaluate(() => document.querySelector('meta[property="og:description"]')?.content || '');
+    const ogImage = await _page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content || '');
+
+    // Extract username from og:title: "Display Name (@username)"
+    const atMatch = ogTitle.match(/\(@([^)]+)\)/);
+    username = atMatch ? atMatch[1] : username;
+
+    // Extract likes/comments from og:description
+    const likesMatch = ogDesc.match(/([\d,.]+)\s*(like|komentar|comment)/i);
+    if (likesMatch) likes = parseInt(likesMatch[1].replace(/,/g, ''));
+
+    // Extract from body text
+    const bodyText = await _page.evaluate(() => {
+        const el = document.querySelector('script[type="application/ld+json"]');
+        return el ? el.textContent : '';
+    });
+
+    if (bodyText) {
+        try {
+            const ld = JSON.parse(bodyText);
+            fullText = ld.articleBody || ld.caption || '';
+            hashtags = (fullText.match(/#\w+/g) || []).map(h => h.toLowerCase());
+            mentions = (fullText.match(/@([a-zA-Z0-9._]+)/g) || [])
+                .map(m => m.slice(1).toLowerCase());
+        } catch (e) { /* ignore */ }
+    }
+
+    return {
+        username,
+        displayName,
+        userPk: '',
+        likes,
+        comments,
+        caption: fullText,
+        hashtags,
+        mentions,
+        collabs: [],
+        date: null,
+        postUrl,
+        shortcode,
+        mediaId: '',
+    };
 }
 
-// ============== PROFILE ENRICHMENT (Playwright) ==============
+/**
+ * Enrich a post URL: try API first, fallback to browser scraping on 302.
+ */
+async function enrichPost(postUrl) {
+    // Try API first
+    const apiResult = await enrichPostFromApi(postUrl);
+    if (apiResult) return apiResult;
+
+    // Fallback: scrape from HTML page via Playwright
+    const browserResult = await enrichPostFromBrowser(postUrl);
+    if (browserResult && browserResult.username) return browserResult;
+
+    return null;
+}
+
+/**
+ * Enrich multiple posts in parallel batches (API + browser fallback).
+ */
+async function enrichPostsBatch(urls, concurrency = 5, batchDelayMs = 2000) {
+    const results = [];
+    for (let i = 0; i < urls.length; i += concurrency) {
+        const batch = urls.slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(url => enrichPost(url)));
+        results.push(...batchResults);
+        if (i + concurrency < urls.length) {
+            await sleep(batchDelayMs);
+        }
+    }
+    return results.filter(Boolean);
+}
+
+// ============== PROFILE ENRICHMENT
 async function enrichProfileFromPage(username) {
     if (!_page) await initBrowser();
     await sleep(REQUEST_DELAY * 1000);

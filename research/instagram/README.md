@@ -80,10 +80,26 @@ node index.js
 
 ## Requirements
 
-- `instagram-cookies.json` — Session cookies from logged-in browser
-  - `sameSite` must be `Strict`, `Lax`, or `None` — NOT `no_restriction`
-  - Get cookies from browser DevTools → Application → Cookies → instagram.com
+- `instagram-cookies.json` — Session cookies from logged-in browser (optional if using auto-refresh)
 - `gcp-service-account.json` — GCP service account for Sheets API
+- `.env` (optional) — `IG_USERNAME` + `IG_PASSWORD` for auto cookie refresh
+
+## Auto Cookie Refresh
+
+Pipeline automatically detects expired sessions and can re-login:
+
+```bash
+# Option 1: environment variables
+export IG_USERNAME=your_username IG_PASSWORD=your_password
+node index.js
+
+# Option 2: .env file
+cp .env.example .env
+# edit .env with your credentials
+node index.js
+```
+
+When session expires (or <7 days left), Playwright will auto-login and save new cookies to `instagram-cookies.json`. Browser launches **headless** for login (no visible window).
 
 ## Configuration
 

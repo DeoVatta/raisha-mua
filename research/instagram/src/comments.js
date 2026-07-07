@@ -11,7 +11,7 @@
  * 4. Top scorers → saved to Client sheet
  */
 
-import { fetchAllPostCommentsGraphQL, enrichPostFromApi } from './scraper.js';
+import { fetchAllPostCommentsGraphQL, enrichPost } from './scraper.js';
 import { REQUEST_DELAY } from './config.js';
 
 function sleep(ms) {
