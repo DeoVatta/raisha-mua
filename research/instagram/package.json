@@ -1,0 +1,16 @@
+{
+  "name": "raisha-mua-instagram-prospector",
+  "version": "2.0.0",
+  "description": "Instagram prospecting for Raisha MUA - hashtag discovery, profile enrichment, competitor/vendor/client classification",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "scan": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "googleapis": "^140.0.0",
+    "google-auth-library": "^9.0.0",
+    "playwright": "^1.50.0"
+  }
+}

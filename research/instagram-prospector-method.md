@@ -1,303 +1,235 @@
-# Raisha MUA - Instagram Prospecting Research
+# Instagram Prospector Method - Raisha MUA
 
 ## Overview
 
-Automated Instagram prospecting tool untuk Raisha MUA (Makeup Artist Semarang). System ini scraping hashtag untuk menemukan:
-- **Competitors** - MUA/Makeup accounts
-- **Vendors** - Other wedding services
-- **Clients** - Potential customers (commenters)
+Automated Instagram prospecting tool for Raisha MUA (Makeup Artist Semarang) using **instagrapi** for full data extraction via Instagram Private API.
 
 ## Goals
 
-1. **Competitor Analysis** - Know your competition in the MUA space
-2. **Vendor Partnership** - Find potential wedding vendor partners
-3. **Client Prospecting** - Find potential customers from hashtag engagement
+1. **Competitor Analysis** - MUA/Makeup accounts
+2. **Vendor Partnership** - Other wedding services
+3. **Client Prospecting** - Potential customers via hashtags
 
-## Architecture
+## Pipeline Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    GOOGLE SHEETS                             │
-│  ┌─────────┐ ┌──────────────┐ ┌─────────┐ ┌───────────┐ │
-│  │ Setting │ │VendorHashtags│ │  Compet │ │ Vendors   │ │
-│  │ (Config)│ │ (Hashtags)   │ │  (MUA)  │ │(Services) │ │
-│  └─────────┘ └──────────────┘ └─────────┘ └───────────┘ │
-│  ┌───────────┐                                                │
-│  │ Clients  │                                                │
-│  │(Prospects)                                                │
-│  └───────────┘                                                │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ Read/Write
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│                  INSTAGRAM SCRAPER                           │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Playwright Browser                                    │  │
-│  │  - Load cookies (session)                             │  │
-│  │  - Navigate hashtags                                   │  │
-│  │  - Extract posts/authors/comments                     │  │
-│  │  - Visit profiles for bio/followers                   │  │
-│  └──────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+START
+  │
+  ├─→ Read existing profiles → visited Set
+  ├─→ Read hashtags (Status=OK)
+  ├─→ Read last_scanned_index from Setting
+  └─→ Read existing counts
+  │
+  ▼
+PHASE 1: HASHTAG SCANNING
+  │
+  ├─→ Select 3 hashtags (index-based rotation)
+  ├─→ For each hashtag:
+  │     ├─→ Scrape latest posts via instagrapi
+  │     ├─→ Collect UNIQUE authors (10 per hashtag)
+  │     ├─→ Skip duplicates, continue counting
+  │     └─→ Add to profile queue
+  │
+  ▼
+PHASE 2: PROFILE PROCESSING
+  │
+  ├─→ Process queue (max 30 profiles)
+  ├─→ instagrapi.full_profile_data:
+  │     ├─→ Username, Display Name, Bio
+  │     ├─→ Followers, Following, Posts count
+  │     ├─→ 20 posts with engagement
+  │     ├─→ Collect hashtags
+  │     └─→ Collect collabs (tagged users)
+  ├─→ Classify: Competitor/Vendor/Client
+  ├─→ WRITE IMMEDIATELY to sheet
+  ├─→ Queue collabs (depth < 4)
+  └─→ Delay 5 seconds between requests
+  │
+  ▼
+PHASE 3: COLLAB DISCOVERY
+  │
+  ├─→ Process collab queue
+  ├─→ Same processing as Phase 2
+  └─→ Max depth 4
+  │
+  ▼
+UPDATE SETTING SHEET
+  ├─→ last_scanned_index += 3
+  └─→ Save all state
 ```
 
-## Google Sheets Integration
+## Configuration
 
-### Service Account
+### Google Sheets Structure
 
-**Service Account Email:**
-```
-claude@cogent-range-458804-r9.iam.gserviceaccount.com
-```
+**Spreadsheet ID**: `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
 
-**Spreadsheet ID:** `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
+#### Setting Sheet
+| Key | Value |
+|-----|-------|
+| last_scanned_index | Current hashtag rotation index |
+| hashtags_total | Total approved hashtags count |
+| profiles_scanned | Running total profiles scanned |
 
-## Spreadsheet Structure
-
-All data sheets: **Row 1 = empty, Row 2 = headers, Row 3+ = data**
-
-### Setting Sheet
-
-Configuration parameters (read at runtime by scanner).
-
-| Parameter | Default | Description |
-|----------|---------|-------------|
-| province | JawaTengah | Target province |
-| city | Semarang,Salatiga,Solo,Boja | Target cities |
-| hashtags | muasemarang,muasurabaya,... | Hashtags to scrape |
-| daily_client_limit | 5 | Max clients per scan |
-| daily_vendor_limit | 5 | Max vendors per scan |
-| daily_competitor_limit | 10 | Max competitors per scan |
-| competitor_keywords | mua,makeup,rias,... | MUA/Makeup keywords |
-| vendor_keywords | fotografer,catering,... | Wedding vendor keywords |
-| comment_length_min | 5 | Min comment characters |
-| exclude_patterns | Tags,Like,Follow | Patterns to exclude |
-
-### VendorHashtags Sheet
-
-Hashtags yang ditemukan dari vendor captions. User review dan set Status OK/NO untuk filter next scan.
-
+#### VendorHashtags Sheet
 | Column | Description |
 |--------|-------------|
-| No | Auto-number |
-| Hashtag | Hashtag yang ditemukan |
-| Source Vendor | Vendor yang pakai hashtag ini |
-| Times Found | Berapa kali ditemukan |
-| Last Found | Tanggal terakhir ditemukan |
-| **Status** | **OK** (useful) / **NO** (not useful) / blank (belum review) |
-| Notes | Catatan manual |
+| A | No |
+| B | Hashtag (e.g., muasemarang) |
+| C | Source Vendor |
+| D | Times Found |
+| E | Last Found |
+| F | Status (OK/NO/blank) |
+| G | Notes |
 
-**Status Values:**
-- `OK` = hashtag useful, scan next time
-- `NO` = hashtag not useful, skip
-- blank = belum di-review
-
-### Clients Sheet
-
-Potential customers (people who commented on posts, not vendors).
-
-| Column | Source |
-|--------|--------|
-| Profile | Instagram URL |
-| Username | Extracted from URL |
-| Source | Post URL where commented |
-| Comment | Comment text |
-| Date | Comment date |
-| Location | From bio (if available) |
-| Private | Yes/No |
-| Followers | Follower count |
-| Bio | Full bio text |
-| Status | Potential Client / Contacted / etc |
-| Notes | Manual notes |
-
-### Competitors Sheet
-
-MUA/Makeup accounts (direct competitors).
-
+#### Competitors Sheet
 | Column | Description |
 |--------|-------------|
-| No | Auto-number |
-| MUA | Display name from bio |
-| Profile | Instagram URL |
-| Username | @username |
-| Location | City from bio |
-| Province | From Setting |
-| Followers | Follower count |
-| Following | Following count |
-| Posts | Total posts |
-| Last Post | Most recent post date |
-| Engagement | Calculated |
-| Hashtags | Hashtags they use |
-| Bio | Full bio |
-| Status | Open/Closed/Pending |
-| Notes | Manual notes |
+| A | No |
+| B | Display Name |
+| C | Profile URL |
+| D | Username |
+| E | Location |
+| F | Region |
+| G | Followers |
+| H | Following |
+| I | Posts |
+| J | Last Post |
+| K | Engagement Rate |
+| L | Hashtags |
+| M | Bio |
+| N | Status |
+| O | Collabs |
+| P | Last Updated |
 
-### Vendors Sheet
+#### Vendor Sheet
+Same as Competitors + Column E = Category
 
-Other wedding services (partnership opportunities).
-
+#### Client Sheet
 | Column | Description |
 |--------|-------------|
-| No | Auto-number |
-| Vendor | Display name |
-| Profile | Instagram URL |
-| Username | @username |
-| Category | Detected (Fotografer/Catering/etc) |
-| Location | City from bio |
-| Province | From Setting |
-| Followers | Follower count |
-| Following | Following count |
-| Posts | Total posts |
-| Last Post | Most recent post date |
-| Engagement | Calculated |
-| Hashtags | Hashtags they use |
-| Bio | Full bio |
-| Status | Open/Closed/Pending |
-| Notes | Manual notes |
+| A | No |
+| B | Profile URL |
+| C | Username |
+| D | Display Name |
+| E | Bio |
+| F | Followers |
+| G | Following |
+| H | Status |
+| I | Hashtags |
+| J | Engagement Rate |
+| K | Avg Likes |
+| L | Avg Comments |
+| M | Collabs |
+| N | Last Updated |
 
-## Scraping Flow
+### Classification Rules
 
-### Vendor Scan Flow
+**Competitor** (bio contains):
+- mua, makeup, rias, riasd, bridalmakeup, hairstylist, hairdo, makeup artist
 
-```
-HASHTAGS (VendorHashtags with Status=OK)
-        │
-        ▼
-┌───────────────────────────────────────┐
-│ SCRAPE POSTS from hashtag               │
-│ Extract: post links + authors          │
-└────────────────────┬──────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────┐
-│ VISIT POST AUTHOR PROFILE              │
-│ Extract: bio, location, followers      │
-└────────────────────┬──────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────┐
-│ CHECK AREA + KEYWORDS                 │
-│                                         │
-│ • Bio contains vendor keywords?         │
-│ • Location in province/city?            │
-│ • YA → SAVE VENDOR                    │
-│ • TIDAK → skip                        │
-└────────────────────┬──────────────────┘
-                     │
-                     ▼
-┌───────────────────────────────────────┐
-│ EXTRACT HASHTAGS FROM CAPTION          │
-│ Add/Update to VendorHashtags sheet    │
-│ (User reviews Status OK/NO later)     │
-└───────────────────────────────────────┘
-```
+**Vendor** (bio contains):
+- fotografer, fotography, foto, videografer, videografi, catering, katering
+- dekorasi, dekor, gaun, kebaya, bouquet, venue, gedung, ballroom
+- organizer, planner, mc, seserahan, salon, beauty, nails, lash, undangan, invitation
 
-### Notes
-- Vendor scan does NOT include client/comment extraction
-- Only extract: post authors, bios, locations, hashtags
-- Area filter: province + city must match Setting
+**Client**: Any other account found through hashtags
 
-## Detection Logic
+**Location** (detected from bio):
+- semarang, salatiga, solo, surakarta, boja, kendal, ungaran, pekalongan
 
-### Competitor Detection (MUA/Makeup)
+## Features
 
-Account dengan keyword berikut di bio → **Competitors sheet**
+### Fair Hashtag Rotation
+- Index-based selection (no hashtag left behind)
+- 3 hashtags per run
+- 10 unique profiles per hashtag
+- Skip duplicates but continue counting
 
-```javascript
-const COMPETITOR_KEYWORDS = [
-  'mua', 'makeup', 'rias', 'riasd', 'bridalmakeup',
-  'hairstylist', 'hairdo'
-];
+### Full Data Extraction (instagrapi)
+- Username, Display Name, Bio
+- Followers, Following, Posts count
+- Engagement: avg likes/comments from 20 posts
+- Engagement Rate: (avg_likes + avg_comments) / followers * 100
+- Hashtags used in posts
+- Collab profiles (tagged users)
+
+### No Data Loss
+- Write immediately to sheets (no buffering)
+- Don't wipe existing data
+- Continue appending from last position
+- Visited profile tracking (prevents duplicates)
+
+### Limits & Safety
+- Max 30 profiles per run
+- Max collab depth 4
+- 5 second delay between requests
+- No duplicate profiles across all sheets
+
+## Setup
+
+### 1. Install Python Dependencies
+```bash
+cd C:\Users\Devata\Documents\GitHub\raisha-mua\research
+pip install -r requirements.txt
 ```
 
-### Vendor Detection (Other Wedding Services)
+### 2. Set Environment Variables
+```bash
+# Windows
+set IG_USERNAME=raisha_makeup
+set IG_PASSWORD=your_password
 
-Account dengan keyword berikut di bio → **Vendors sheet**
-
-```javascript
-const VENDOR_KEYWORDS = [
-  'fotografer', 'fotography', 'foto', 'videografer',
-  'catering', 'katering',
-  'dekorasi', 'dekor',
-  'gaun', 'kebaya', 'bouquet',
-  'venue', 'gedung', 'ballroom',
-  'organizer', 'planner', 'mc',
-  'seserahan',
-  'salon', 'beauty', 'nails', 'lash',
-  'undangan', 'invitation'
-];
+# Or create .env file
+IG_USERNAME=raisha_makeup
+IG_PASSWORD=your_password
 ```
 
-### Client Detection (Potential Customers)
+### 3. Configure Google Service Account
+Place service account JSON at:
+```
+C:\Users\Devata\Documents\GitHub\keys\google-service-account.json
+```
 
-- Commenters yang **TIDAK** mengandung competitor/vendor keywords
-- Comment mengandung wedding-related keywords (optional)
-- Exclude patterns: `Tags, Like, Follow, jawab, jawaban`
-
-## Instagram Cookies Setup
-
-### How to Get Cookies
-
-1. Open Instagram in browser (logged in as Raisha)
-2. Open DevTools (F12)
-3. Go to Application > Cookies > instagram.com
-4. Export all cookies as JSON
-5. Copy to `cookies` array in scanner
-
-### Required Cookies
-
-| Cookie | Purpose |
-|--------|---------|
-| sessionid | Main session |
-| csrftoken | CSRF protection |
-| datr | Facebook datr |
-| mid | Machine ID |
-| ig_did | Device ID |
-| ps_n/ps_l | Login state |
-| ds_user_id | User ID |
+### 4. Run
+```bash
+python profiler.py
+```
 
 ## Files
 
 ```
-instagram-scrape/
-├── scanner.js                    # Main scraper
-├── test-sheets.js               # Test Sheets connection
-├── setup-client-sheet.js       # Setup Client headers
-├── setup-vendor-sheet.js       # Setup Vendor headers
-├── setup-competitor-sheet.js    # Setup Competitor headers
-├── create-vendor-hashtags-sheet.js  # Create VendorHashtags
-├── populate-initial-hashtags.js  # Populate initial hashtags
-├── cleanup-sheets.js            # Clean all sheets
-└── package.json
+raisha-mua/research/
+├── profiler.py              # Main Python scanner (instagrapi)
+├── vendor-scanner.js        # Legacy Playwright scanner
+├── requirements.txt         # Python dependencies
+├── package.json             # Node.js (legacy)
+├── instagram-prospector-method.md  # This file
+└── google-sheets/
 ```
 
-## Running the Scanner
+## Data Extracted Per Profile
 
-```bash
-cd C:\Users\Devata\Documents\GitHub\instagram-scrape
-node scanner.js
-```
-
-## Limitations
-
-### Cannot Get
-- ❌ Who viewed profile
-- ❌ Who liked post
-- ❌ Who saved post
-- ❌ Private account details (unless following)
-
-### Can Get
-- ✅ Public post data
-- ✅ Public profile info
-- ✅ Comments (public posts)
-- ✅ Hashtags used
+Each profile written includes:
+- Username, Display Name, Bio
+- Followers, Following, Posts count
+- Profile URL
+- Location (detected from bio)
+- Account type (Competitor/Vendor/Client)
+- Category (MUA/Fotografer/Catering/etc)
+- **Engagement Rate**: (avg_likes + avg_comments) / followers * 100
+- **Avg Likes**: Average likes across last 20 posts
+- **Avg Comments**: Average comments across last 20 posts
+- **Hashtags**: Up to 20 hashtags from posts
+- **Collabs**: Up to 10 tagged users in posts
+- Timestamp
 
 ## Update Log
 
-- 2026-07-07: Initial setup with Google Sheets integration
-- Added Competitors/Vendors/Clients detection
-- Service Account authentication working
-- Complete sheet structures defined
-- Added VendorHashtags sheet with Status OK/NO for manual filtering
-- Vendor scan flow documented (separate from client scan)
-- Initial hashtags populated from Setting
+- 2026-07-07: New pipeline using instagrapi for full engagement data extraction
+  - Python implementation (instagrapi library)
+  - 20 posts analyzed per profile for engagement metrics
+  - Collab detection from tagged users
+  - Index-based hashtag rotation (fair scanning)
+  - Write immediately pattern (no data loss)
+  - Max 30 profiles, 5s delay, max depth 4
