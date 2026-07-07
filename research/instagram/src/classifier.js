@@ -59,10 +59,92 @@ export const VENDOR_HASHTAGS = [
     '#salon', '#weddingnails',
 ];
 
-export const TARGET_CITIES = [
-    'semarang', 'salatiga', 'solo', 'surakarta', 'boja',
-    'kendal', 'ungaran', 'pekalongan', 'demak', 'kudus', 'pati'
+// Semua kota, kabupaten & daerah di Jawa Tengah
+export const JAWA_TENGAH_CITIES = [
+    // Kota
+    'semarang', 'salatiga', 'solo', 'surakarta', 'tegal', 'pekalongan',
+    // Kabupaten / Kota Kabupaten
+    'brebes', 'pemalang', 'batang', 'kendal', 'demak', 'kudus',
+    'pati', 'rembang', 'blora', 'grobogan', 'sragen', 'wonogiri',
+    'karanganyar', 'klaten', 'boyolali', 'magelang', 'temanggung',
+    'ungaran', 'banyumas', 'cilacap', 'purwokerto', 'purbalingga',
+    'banjarnegara', 'wonosobo', 'kebumen', 'purworejo',
+    'wonogiri', 'cepu', 'jati', 'kaliori', 'bumiaji', 'jakenan',
+    'jenggala', 'peterongan', 'sumobito', 'gudo', 'diwek',
+    // Daerah / Kecamatan di Semarang
+    'ambarawa', 'susukan', 'bergas', 'bawen', 'boja', 'tengaran',
+    'kaliwulu', 'pabelokan', 'suruh', 'getasan', 'ledok',
+    'ngaliyan', 'tembalang', 'banyumanik', 'candisari', 'gajahmungkur',
+    'pringsurat', 'kaliwangi', 'jambu', 'sumowono', 'pakis',
+    'ngablak', 'wonosegoro', 'jumo', 'sigaluh', 'keling',
+    // Daerah / Kecamatan di Solo & sekitarnya
+    'jebres', 'laweyan', 'banjarsari', 'grogol', 'mojosongo',
+    'ngemplak', 'colomadu', 'gondangrejo', 'jatisrono', 'ngadiroyo',
+    'ngadirojo', 'jatiroto', 'kismantoro', 'jatiyoso', 'giritontro',
+    'bendosari', 'polokarto', 'sukuh', 'tasikmadu', 'kerjo',
+    // Daerah / Kecamatan di Kudus, Pati, dll
+    'jekulo', 'tanggal', 'dawe', 'bacin', 'kudus', 'kai',
+    'winong', 'gabus', 'pagu', 'kayen', 'tambakromo', 'prawoto',
+    // Alternatif / typo
+    'jateng', 'jawa tengah', 'central java', 'karesidenan',
 ];
+
+// Shortcuts / abbreviations
+const CITY_ALIASES = {
+    'smg': 'Semarang', 'smgku': 'Semarang', 'semarangku': 'Semarang',
+    'slg': 'Salatiga', 'slt': 'Salatiga',
+    'solo': 'Solo', 'surakarta': 'Solo', 'sby': 'Solo', 'sukuh': 'Solo', 'tasikmadu': 'Solo',
+    'klt': 'Klaten', 'kltn': 'Klaten',
+    'kudus': 'Kudus', 'kds': 'Kudus',
+    'tegal': 'Tegal', 'tgl': 'Tegal',
+    'pekalongan': 'Pekalongan', 'pkl': 'Pekalongan',
+    'pati': 'Pati', 'brebes': 'Brebes', 'bbs': 'Brebes',
+    'ungaran': 'Ungaran', 'ung': 'Ungaran',
+    'jateng': 'JawaTengah', 'jawa tengah': 'JawaTengah',
+    'cepu': 'Cepu', 'jati': 'Jati', 'bumiaji': 'Bumiaji',
+};
+
+export function detectLocation(bio = '', displayName = '', nativeLocation = '') {
+    const raw = ((bio || '') + ' ' + (displayName || '')).toLowerCase();
+
+    // Priority 1: native location from Instagram profile (JSON-LD / og:description)
+    if (nativeLocation) {
+        const normalized = nativeLocation.toLowerCase();
+        // Check if native location is in Jawa Tengah
+        for (const city of JAWA_TENGAH_CITIES) {
+            if (normalized.includes(city)) {
+                return capitalizeFirst(resolveAlias(city));
+            }
+        }
+        // If native location exists but not Jawa Tengah → return empty (not in scope)
+        return '';
+    }
+
+    // Priority 2: scan bio for Jawa Tengah cities
+    for (const city of JAWA_TENGAH_CITIES) {
+        if (wordBoundaryMatch(raw, city)) {
+            return capitalizeFirst(resolveAlias(city));
+        }
+    }
+
+    // Priority 3: check aliases
+    for (const [alias, resolved] of Object.entries(CITY_ALIASES)) {
+        if (wordBoundaryMatch(raw, alias)) {
+            return resolved;
+        }
+    }
+
+    return '';
+}
+
+function resolveAlias(city) {
+    return CITY_ALIASES[city.toLowerCase()] || capitalizeFirst(city);
+}
+
+function capitalizeFirst(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 // ============== CLASSIFIER ==============
 function wordBoundaryMatch(text, keyword) {
@@ -140,20 +222,6 @@ export function detectCategory(bio, displayName, accountType) {
     return 'Client';
 }
 
-export function detectLocation(bio, displayName, locationFromPost = '') {
-    const text = ((bio || '') + ' ' + (displayName || '') + ' ' + (locationFromPost || '')).toLowerCase();
-
-    for (const city of TARGET_CITIES) {
-        if (wordBoundaryMatch(text, city)) {
-            return capitalize(city);
-        }
-    }
-    return '';
-}
-
-function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
 
 // ============== ENGAGEMENT ==============
 export function calculateEngagement(likes, comments, followers) {

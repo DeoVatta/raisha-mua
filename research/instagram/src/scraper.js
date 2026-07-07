@@ -228,7 +228,38 @@ async function initBrowser() {
     // Establish session
     await _page.goto('https://www.instagram.com/', { waitUntil: 'networkidle', timeout: 30000 });
     await _page.waitForTimeout(2000);
+    // Capture all cookies (including Instagram-set ones) so HTTP API calls work
+    await refreshCookieStr();
     console.log('[BROWSER] Session ready, URL:', _page.url().substring(0, 50));
+}
+
+// Refresh HTTP client cookie string from current browser context
+// Called after browser visits Instagram — captures all cookies including
+// Instagram-set ones (ig_did, ig_nrcb, datr, mid, etc.) that are needed
+// for API calls to return 200 instead of 302.
+async function refreshCookieStr() {
+    if (!_context) return;
+    // IMPORTANT: never overwrite user's original sessionid — browser's stealth browser
+    // creates its own session which may have different expiration date, causing
+    // session validity check to fail on next run → infinite login loop.
+    const existing = _cookies || [];
+    const existingSessionId = existing.find(c => c.name === 'sessionid');
+    const browserCookies = await _context.cookies('https://www.instagram.com');
+
+    // Keep existing sessionid, add any missing browser-set cookies
+    const merged = [...existing];
+    for (const bc of browserCookies) {
+        if (bc.name === 'sessionid') continue; // never overwrite user's sessionid
+        const idx = merged.findIndex(c => c.name === bc.name);
+        if (idx >= 0) {
+            merged[idx] = bc;
+        } else {
+            merged.push(bc);
+        }
+    }
+    _cookies = merged;
+    _cookieStr = _cookies.map(c => c.name + '=' + c.value).join('; ');
+    _csrftoken = _cookies.find(c => c.name === 'csrftoken')?.value || '';
 }
 
 async function closeBrowser() {
@@ -298,25 +329,6 @@ async function enrichPostFromApi(postUrl) {
     }
 }
 
-/**
- * Enrich multiple posts in parallel batches.
- * @param {string[]} urls - Post URLs
- * @param {number} concurrency - Max concurrent requests per batch
- * @param {number} batchDelayMs - Delay between batches (ms)
- */
-async function enrichPostsBatch(urls, concurrency = 5, batchDelayMs = 2000) {
-    const results = [];
-    for (let i = 0; i < urls.length; i += concurrency) {
-        const batch = urls.slice(i, i + concurrency);
-        const batchResults = await Promise.all(batch.map(url => enrichPostFromApi(url)));
-        results.push(...batchResults);
-        if (i + concurrency < urls.length) {
-            await sleep(batchDelayMs);
-        }
-    }
-    return results.filter(Boolean);
-}
-
 // ============== POST ENRICHMENT (Playwright HTML) — fallback when API 302 ==============
 /**
  * Extract post data directly from HTML page via Playwright.
@@ -328,8 +340,30 @@ async function enrichPostFromBrowser(postUrl) {
     const shortcode = postUrl.split('/p/')[1]?.replace('/', '') || '';
     if (!shortcode) return null;
 
-    await _page.goto(postUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await _page.waitForTimeout(2500);
+    // Reset to about:blank first — Instagram anti-bot detects direct search→post navigation
+    // Then wait before going to post page
+    await _page.goto('about:blank').catch(() => {});
+    await sleep(3000);
+
+    // Navigate with retry
+    try {
+        await _page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    } catch (e) {
+        if (e.message?.includes('ERR_ABORTED') || e.message?.includes('net::ERR')) {
+            // Reset state
+            await _page.goto('about:blank').catch(() => {});
+            await sleep(2000);
+            try {
+                await _page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            } catch {
+                console.log(`  [BROWSER WARN] Failed to load: ${shortcode}`);
+                return null;
+            }
+        } else {
+            return null;
+        }
+    }
+    await _page.waitForTimeout(3000);
 
     const bodyLen = await _page.evaluate(() => document.body.innerHTML.length);
     if (bodyLen < 200) {
@@ -478,7 +512,7 @@ async function enrichProfileFromPage(username) {
     await sleep(REQUEST_DELAY * 1000);
 
     const profileUrl = `https://www.instagram.com/${username}/`;
-    await _page.goto(profileUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await _page.waitForTimeout(3000);
 
     const bodyLen = await _page.evaluate(() => document.body.innerHTML.length);
@@ -505,6 +539,19 @@ async function enrichProfileFromPage(username) {
     let displayName = ogTitle;
     const atIdx = ogTitle.indexOf('(@');
     if (atIdx > 0) displayName = ogTitle.substring(0, atIdx).trim();
+
+    // Extract native location from JSON-LD schema
+    let nativeLocation = '';
+    try {
+        const ldRaw = await _page.evaluate(() => {
+            const el = document.querySelector('script[type="application/ld+json"]');
+            return el ? el.textContent.trim() : '';
+        });
+        if (ldRaw) {
+            const ld = JSON.parse(ldRaw);
+            nativeLocation = ld.address?.addressLocality || ld.address?.addressRegion || '';
+        }
+    } catch { /* ignore */ }
 
     // Body text for bio, category, WA link
     const bodyText = await _page.evaluate(() => document.body.innerText || '');
@@ -548,6 +595,7 @@ async function enrichProfileFromPage(username) {
         displayName,
         bio,
         category,
+        nativeLocation,
         followers,
         following,
         posts,
@@ -563,7 +611,7 @@ async function scrapeProfilePosts(username, maxPosts = 20) {
     await sleep(REQUEST_DELAY * 1000);
 
     const profileUrl = `https://www.instagram.com/${username}/`;
-    await _page.goto(profileUrl, { waitUntil: 'networkidle', timeout: 30000 });
+    await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await _page.waitForTimeout(2000);
 
     // Scroll to load posts
@@ -596,6 +644,7 @@ function buildFallbackProfile(username) {
         displayName: username,
         bio: '',
         category: '',
+        nativeLocation: '',
         followers: 0,
         following: 0,
         posts: 0,
@@ -606,13 +655,25 @@ function buildFallbackProfile(username) {
 }
 
 // ============== SCRAPE HASHTAG ==============
+/**
+ * Scrape hashtag page via _sharedData JSON — fastest method, no per-post navigation.
+ * Instagram embeds hashtag posts in window._sharedData on the search page.
+ */
 async function scrapeHashtag(hashtag, maxPosts = 50) {
     if (!_page) await initBrowser();
 
     console.log(`[HASHTAG] #${hashtag}`);
     const searchUrl = `https://www.instagram.com/explore/search/keyword/?q=%23${encodeURIComponent(hashtag)}`;
-    await _page.goto(searchUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await _page.waitForTimeout(3000);
+
+    await _page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 40000 });
+
+    // Wait for React to render posts (img inside post links)
+    try {
+        await _page.waitForSelector('a[href*="/p/"] img', { timeout: 20000 });
+    } catch (e) {
+        console.log(`  [WARN] No posts appeared — page may be blocked`);
+    }
+    await _page.waitForTimeout(1000);
 
     // Scroll to load more posts (lazy loading)
     let prevCount = 0;
@@ -629,21 +690,79 @@ async function scrapeHashtag(hashtag, maxPosts = 50) {
 
         prevCount = currentCount;
         await _page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await _page.waitForTimeout(2000);
+        // Wait for React to render new posts after scroll
+        try {
+            await _page.waitForSelector('a[href*="/p/"] img', { timeout: 8000 });
+        } catch (e) { /* timed out, will count anyway */ }
+        await _page.waitForTimeout(1000);
         scrollCount++;
     }
 
-    // Extract post URLs
+    // Extract post URLs (for reference)
     const postUrls = await _page.$$eval('a[href*="/p/"]',
         els => [...new Set(els.map(e => e.href.split('?')[0]))]);
 
     console.log(`  Found ${postUrls.length} post URLs (${scrollCount} scrolls)`);
     if (postUrls.length === 0) return [];
 
-    // Enrich all posts in parallel batches (5 concurrent, 2s between batches)
-    const posts = await enrichPostsBatch(postUrls, 5, 2000);
-    console.log(`  Enriched ${posts.length} posts`);
-    return posts;
+    // Extract post data from img[alt] inside a[href*="/p/"]
+    // Instagram generates alt text as: "Caption @username text #hashtag #hashtag"
+    // Username comes from the first @mention in the alt, caption is full alt text
+    const postsData = await _page.evaluate(() => {
+        const results = [];
+        const postLinks = Array.from(document.querySelectorAll('a[href*="/p/"]'));
+        const seenCodes = new Set();
+
+        for (const link of postLinks) {
+            const href = link.getAttribute('href');
+            if (!href) continue;
+            const match = href.match(/\/p\/([A-Za-z0-9_-]+)/);
+            if (!match) continue;
+            const code = match[1];
+            if (seenCodes.has(code)) continue;
+            seenCodes.add(code);
+
+            // Get img alt text inside this post link
+            const img = link.querySelector('img');
+            const altText = img ? (img.getAttribute('alt') || '') : '';
+
+            // First @mention = post author username
+            const atMentions = [...altText.matchAll(/@([a-zA-Z0-9._]+)/g)].map(m => m[1]);
+            const username = atMentions[0] || '';
+            const otherMentions = atMentions.slice(1).map(m => m.toLowerCase());
+
+            // Hashtags from alt text
+            const hashtags = [...altText.matchAll(/#(\w+)/g)]
+                .map(m => m[1].toLowerCase());
+
+            results.push({
+                shortcode: code,
+                username,
+                caption: altText.substring(0, 500),
+                hashtags,
+                mentions: otherMentions,
+            });
+        }
+        return results;
+    });
+
+    console.log(`  Extracted ${postsData.length} posts from img[alt] — sample: ${postsData[0]?.username || 'none'}`);
+
+    return postsData.slice(0, maxPosts).map(p => ({
+        username: p.username,
+        displayName: '',
+        userPk: '',
+        likes: 0,
+        comments: 0,
+        caption: p.caption,
+        hashtags: p.hashtags,
+        mentions: p.mentions,
+        collabs: [],
+        date: null,
+        postUrl: `https://www.instagram.com/p/${p.shortcode}/`,
+        shortcode: p.shortcode,
+        mediaId: '',
+    }));
 }
 
 // ============== SCRAPE MULTIPLE HASHTAGS ==============
@@ -656,10 +775,11 @@ async function scrapeHashtags(hashtags) {
     for (const hashtag of hashtags) {
         const posts = await scrapeHashtag(hashtag);
         for (const p of posts) {
-            if (!seen.has(p.username)) {
-                seen.add(p.username);
-                allPosts.push({ ...p, sourceHashtag: hashtag });
-            }
+            // Dedup by shortcode (most reliable), fallback to username
+            const key = p.shortcode || p.username;
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            allPosts.push({ ...p, sourceHashtag: hashtag });
         }
     }
 
@@ -670,7 +790,9 @@ async function scrapeHashtags(hashtags) {
 export {
     initBrowser,
     closeBrowser,
+    refreshCookieStr,
     enrichPostFromApi,
+    enrichPost,
     enrichPostsBatch,
     enrichProfileFromPage,
     scrapeProfilePosts,

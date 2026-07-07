@@ -109,7 +109,7 @@ async function enrichProfile(username, postData = null) {
         // Classify
         const fullText = (profile.bio || '') + ' ' + (profile.displayName || '') + ' ' + (profile.category || '');
         profile.type = classifyAccount(profile.bio || '', profile.displayName || '');
-        profile.location = detectLocation(profile.bio || '', profile.displayName || '');
+        profile.location = detectLocation(profile.bio || '', profile.displayName || '', profile.nativeLocation || '');
         profile.category = detectCategory(profile.bio || '', profile.displayName || '', profile.type);
 
         // Engagement (use post likes/comments as proxy, or from profile data)
