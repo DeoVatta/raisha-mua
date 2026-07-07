@@ -123,7 +123,7 @@ function filterClients(comments, postAuthor) {
  * Get comment summary from a post.
  */
 async function getCommentMetrics(postUrl) {
-    const post = await enrichPostFromApi(postUrl);
+    const post = await enrichPost(postUrl);
     if (!post) return null;
     return {
         username: post.username,
@@ -138,20 +138,6 @@ async function getCommentMetrics(postUrl) {
 }
 
 /**
- * Extract potential clients from a single post.
- */
-async function extractClientsFromPost(postUrl) {
-    const post = await enrichPostFromApi(postUrl);
-    if (!post || !post.shortcode) return { clients: [], postData: null };
-
-    const allComments = await fetchAllPostCommentsGraphQL(post.shortcode, 100);
-    if (allComments.length === 0) return { clients: [], postData: post };
-
-    const clients = filterClients(allComments, post.username);
-    return { clients, postData: post, totalComments: allComments.length };
-}
-
-/**
  * Extract potential clients from a list of posts (parallel batches).
  */
 async function extractClientsFromPosts(posts, concurrency = 3, batchDelayMs = 3000) {
@@ -160,9 +146,15 @@ async function extractClientsFromPosts(posts, concurrency = 3, batchDelayMs = 30
 
     for (let i = 0; i < posts.length; i += concurrency) {
         const batch = posts.slice(i, i + concurrency);
-        const batchResults = await Promise.all(batch.map(post => {
+
+        // Enrich post data + fetch comments in parallel
+        const batchResults = await Promise.all(batch.map(async (post) => {
             const url = post.postUrl || post.url;
-            return extractClientsFromPost(url);
+            const postData = await enrichPost(url);
+            if (!postData || !postData.shortcode) return { clients: [], postData: null, totalComments: 0 };
+            const allComments = await fetchAllPostCommentsGraphQL(postData.shortcode, 100);
+            const clients = filterClients(allComments, postData.username);
+            return { clients, postData, totalComments: allComments.length };
         }));
 
         for (const result of batchResults) {
@@ -194,4 +186,4 @@ async function extractClientsFromPosts(posts, concurrency = 3, batchDelayMs = 30
 }
 
 // ============== EXPORTS ==============
-export { getCommentMetrics, extractClientsFromPost, extractClientsFromPosts, filterClients, scoreComment };
+export { getCommentMetrics, extractClientsFromPosts, filterClients, scoreComment };

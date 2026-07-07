@@ -96,7 +96,38 @@ async function writeHeaders() {
 let sheetsClient = null;
 
 // Row 1 = empty, Row 2 = header, Row 3+ = data
+// Loaded from Setting sheet on startup to survive across pipeline runs
 const nextRow = { Competitors: 3, Vendor: 3, Client: 3 };
+
+async function _loadNextRowFromSetting() {
+    const rows = await readRange('Setting!A1:B50');
+    for (const row of rows) {
+        if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || 3;
+        if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || 3;
+        if (row[0] === 'nextrow_client') nextRow.Client = parseInt(row[1]) || 3;
+    }
+}
+
+async function _saveNextRowToSetting() {
+    if (!sheetsClient) return;
+    const rows = [
+        ['nextrow_competitors', nextRow.Competitors],
+        ['nextrow_vendor', nextRow.Vendor],
+        ['nextrow_client', nextRow.Client],
+    ];
+    try {
+        // Write to Setting sheet rows 50-52 (fixed positions)
+        await sheetsClient.spreadsheets.values.update({
+            spreadsheetId: SHEETS_ID,
+            range: 'Setting!A50:B52',
+            valueInputOption: 'RAW',
+            resource: { values: rows }
+        });
+    } catch (e) {
+        // Non-critical — log and continue
+        console.log(`[SHEETS] Failed to persist nextRow: ${e.message}`);
+    }
+}
 
 async function initSheets() {
     if (sheetsClient) return sheetsClient;
@@ -123,6 +154,10 @@ async function initSheets() {
 
     // Write headers to Row 2 if not already present
     await writeHeaders();
+
+    // Load persisted nextRow from Setting sheet
+    await _loadNextRowFromSetting();
+    console.log(`[SHEETS] nextRow → Competitors:${nextRow.Competitors} Vendor:${nextRow.Vendor} Client:${nextRow.Client}`);
 
     return sheetsClient;
 }
@@ -363,6 +398,7 @@ async function writeProfile(profile, existingUsernames) {
     await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
     nextRow[sheetName] = rowNum + 1; // increment for next write
     existingUsernames.add(profile.username);
+    await _saveNextRowToSetting();
     console.log(`  [SAVED] @${profile.username} to ${sheetName} (row ${rowNum})`);
 }
 
@@ -397,6 +433,7 @@ async function writeClientFromComment(clientData, existingUsernames) {
     await writeRange(`${sheetName}!A${rowNum}:H${rowNum}`, values);
     nextRow[sheetName] = rowNum + 1;
     existingUsernames.add(username);
+    await _saveNextRowToSetting();
     console.log(`  [SAVED CLIENT] @${username} via ${via} (row ${rowNum})`);
 }
 
@@ -425,5 +462,6 @@ export {
     writeProfile,
     writeClientFromComment,
     writeNewHashtag,
-    updateLastIndex
+    updateLastIndex,
+    readRange
 };

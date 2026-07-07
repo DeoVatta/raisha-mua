@@ -18,6 +18,7 @@
 import {
     initBrowser,
     closeBrowser,
+    refreshCookieStr,
     enrichPostFromApi,
     enrichProfileFromPage,
     enrichPostsBatch,
@@ -62,6 +63,7 @@ async function run() {
     console.log('\n[1] Initializing...');
     await initSheets();
     await initBrowser();
+    await refreshCookieStr(); // sync browser cookies → HTTP API client
 
     // 2. Load state from sheets
     console.log('\n[2] Loading state...');
@@ -93,8 +95,14 @@ async function run() {
     const allPosts = await scrapeHashtags(selected);
     console.log(`\n  Total unique posts: ${allPosts.length}`);
 
-    // Filter to unvisited + exclude own account
-    const newPosts = allPosts.filter(p => !state.visited.has(p.username) && p.username !== 'deovatta');
+    // Filter to unvisited + exclude own account (dedup by shortcode + username)
+    const newPosts = allPosts.filter(p => {
+        if (p.username === 'deovatta') return false;
+        // Check both shortcode and username for visited dedup
+        if (p.shortcode && state.visited.has(p.shortcode)) return false;
+        if (p.username && state.visited.has(p.username)) return false;
+        return true;
+    });
     console.log(`  New posts: ${newPosts.length}`);
 
     if (newPosts.length === 0) {

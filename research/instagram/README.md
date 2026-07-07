@@ -47,6 +47,8 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 
 **Row 1 = EMPTY, Row 2 = Headers, Row 3+ = Data**
 
+**Row tracking is persisted to the Setting sheet** (`nextrow_competitors`, `nextrow_vendor`, `nextrow_client` in Setting rows 50–52) so appends survive across pipeline runs without overwrite.
+
 Headers are only written once — `writeHeaders()` checks `Competitors!B2='Display Name'` before writing, preventing data overwrite on subsequent runs.
 
 | Sheet | Columns | Notes |
