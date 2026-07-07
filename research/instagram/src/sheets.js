@@ -257,15 +257,14 @@ async function writeRange(range, values) {
 }
 
 async function getNextRow(sheetName) {
-    // If not initialized, scan sheet to find first empty row
     if (!nextRow[sheetName]) {
-        const rows = await readRange(`${sheetName}!A:A`);
-        // rows[0] = header (row 1). Find first empty after header.
+        // Scan ALL columns to find first truly empty row (not just column A)
+        const rows = await readRange(`${sheetName}!A:Z`);
         for (let i = 1; i <= rows.length + 1; i++) {
             const row = rows[i - 1];
             const hasContent = row && row.some(c => c && String(c).trim() !== '');
             if (!hasContent) {
-                nextRow[sheetName] = i + 1; // 1-indexed: array pos i-1 → row i+1
+                nextRow[sheetName] = i + 1; // array pos i-1 → row i+1
                 break;
             }
         }
