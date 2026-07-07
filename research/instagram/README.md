@@ -84,8 +84,8 @@ No fresh scan needed (mutex prevents stale cache). No per-write persistence (one
 | Competitors | No, Display Name, Profile URL, Username, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Competitors |
 | Vendor | No, Display Name, Profile URL, Username, Category, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Vendor |
 | Client | No, Profile URL, Username, Via, Source, Comment Text, Location, Date Comment | nextRow.Client |
-| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | Auto-detect |
-| Setting | `nextrow_competitors`, `nextrow_vendor`, `nextrow_client` in rows 50-52 | Persisted at end of run |
+| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | nextRow.VendorHashtags |
+| Setting | `nextrow_competitors` (row 50), `nextrow_vendor` (row 51), `nextrow_client` (row 52), `nextrow_vendorhashtags` (row 53) | Persisted at end of run |
 
 ## Pipeline Flow
 
@@ -200,6 +200,6 @@ Because the mutex already guarantees no race condition. Persisting every write a
 
 Because `nextRow` always points to the next empty row. The first data row is row 3, which should be `No=1`. So `No = nextRow - 2`. This is always sequential regardless of gaps.
 
-### Why rows 50-52 for Setting persistence?
+### Why rows 50-53 for Setting persistence?
 
-Rows 50-52 are fixed positions far from other data, unlikely to be overwritten by normal use of the Setting sheet.
+Rows 50-53 are fixed positions far from other data, unlikely to be overwritten by normal use of the Setting sheet.

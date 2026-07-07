@@ -87,7 +87,7 @@ let sheetsClient = null;
 
 // nextRow: next empty row to write (Row 1=empty, Row 2=header, Row 3+=data)
 // Persisted to Setting sheet for cross-session survival
-const nextRow = { Competitors: 3, Vendor: 3, Client: 3 };
+const nextRow = { Competitors: 3, Vendor: 3, Client: 3, VendorHashtags: 3 };
 
 async function _loadFromSetting() {
     const rows = await readRange('Setting!A1:B60');
@@ -95,6 +95,7 @@ async function _loadFromSetting() {
         if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || nextRow.Competitors;
         if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || nextRow.Vendor;
         if (row[0] === 'nextrow_client') nextRow.Client = parseInt(row[1]) || nextRow.Client;
+        if (row[0] === 'nextrow_vendorhashtags') nextRow.VendorHashtags = parseInt(row[1]) || nextRow.VendorHashtags;
     }
 }
 
@@ -103,12 +104,13 @@ async function _saveToSetting() {
     try {
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID,
-            range: 'Setting!A50:B52',
+            range: 'Setting!A50:B53',
             valueInputOption: 'RAW',
             resource: { values: [
                 ['nextrow_competitors', nextRow.Competitors],
                 ['nextrow_vendor', nextRow.Vendor],
                 ['nextrow_client', nextRow.Client],
+                ['nextrow_vendorhashtags', nextRow.VendorHashtags],
             ] }
         });
     } catch (e) {
@@ -136,7 +138,7 @@ async function initSheets() {
 
     await writeHeaders();
     await _loadFromSetting();
-    console.log(`[SHEETS] nextRow → Competitors:${nextRow.Competitors} Vendor:${nextRow.Vendor} Client:${nextRow.Client}`);
+    console.log(`[SHEETS] nextRow → Competitors:${nextRow.Competitors} Vendor:${nextRow.Vendor} Client:${nextRow.Client} VendorHashtags:${nextRow.VendorHashtags}`);
 
     return sheetsClient;
 }
@@ -189,21 +191,20 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (_seenHashtags.has(clean)) return;
     if (_genericHashtags.has(clean)) return;
 
-    const rows = await readRange('VendorHashtags!A1:F500');
+    // Quick dedup scan only for in-session duplicates (not for persist tracking)
+    const rows = await readRange('VendorHashtags!B1:F500');
     for (let i = 2; i < rows.length; i++) {
-        if (rows[i][1] && rows[i][1].toLowerCase() === clean) {
+        if (rows[i][0] && rows[i][0].toLowerCase() === clean) {
             _seenHashtags.add(clean);
             return;
         }
     }
 
-    let writeRow = rows.length + 1;
-    for (let i = 2; i < rows.length; i++) {
-        if (!rows[i] || !rows[i][1]) { writeRow = i + 1; break; }
-    }
-
+    // Use in-memory counter — simple, no scan needed
+    const writeRow = nextRow.VendorHashtags;
     const today = new Date().toISOString().split('T')[0];
     await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
+    nextRow.VendorHashtags = writeRow + 1;
     _seenHashtags.add(clean);
     console.log(`  [NEW HASHTAG] #${clean}`);
 }
@@ -222,6 +223,23 @@ async function readVisitedProfiles() {
     }
     console.log(`[SHEETS] Loaded ${visited.size} visited profiles`);
     return visited;
+}
+
+async function updateLastIndex(index) {
+    if (!sheetsClient) return;
+    // Write to first available row in Setting sheet (find last_scanned_index row or write new)
+    const rows = await readRange('Setting!A1:B50');
+    let found = false;
+    for (let i = 0; i < rows.length; i++) {
+        if (rows[i][0] === 'last_scanned_index') {
+            await writeRange(`Setting!B${i + 1}:B${i + 1}`, [[index]]);
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        await writeRange('Setting!A50:B50', [['last_scanned_index', index]]);
+    }
 }
 
 async function readLastIndex() {
@@ -256,11 +274,11 @@ async function writeRange(range, values) {
 const _locks = {};
 function acquireLock(sheetName) {
     if (!_locks[sheetName]) _locks[sheetName] = Promise.resolve();
-    let release;
-    const lock = Promise.resolve().then(() => { release = () => { _locks[sheetName] = Promise.resolve(); }; });
-    const prev = _locks[sheetName];
-    _locks[sheetName] = lock;
-    return { prev, release };
+    const lockState = { prev: _locks[sheetName] };
+    _locks[sheetName] = _locks[sheetName].then(() => {
+        lockState.release = () => { _locks[sheetName] = Promise.resolve(); };
+    });
+    return lockState;
 }
 
 // ============== ROW GETTER ==============
@@ -284,7 +302,11 @@ async function writeProfile(profile, existingUsernames) {
     const sheetName = profile.type === 'competitor' ? 'Competitors'
         : profile.type === 'vendor' ? 'Vendor' : 'Client';
 
-    const { release } = acquireLock(sheetName);
+    await acquireLock(sheetName).prev; // wait for previous lock holder to release
+    const lockState = {};
+    _locks[sheetName] = _locks[sheetName].then(() => {
+        lockState.release = () => { _locks[sheetName] = Promise.resolve(); };
+    });
     try {
         const rowNum = nextRow[sheetName];          // get current row
         const sheetNo = rowNum - 2;                  // No column = always sequential
@@ -366,7 +388,7 @@ async function writeProfile(profile, existingUsernames) {
 
         console.log(`  [SAVED] @${username} to ${sheetName} (row ${rowNum}, No=${sheetNo})`);
     } finally {
-        release();
+        if (lockState.release) lockState.release();
     }
 }
 
@@ -380,7 +402,11 @@ async function writeClientFromComment(clientData, existingUsernames) {
         return;
     }
 
-    const { release } = acquireLock('Client');
+    await acquireLock('Client').prev;
+    const lockState = {};
+    _locks.Client = _locks.Client.then(() => {
+        lockState.release = () => { _locks.Client = Promise.resolve(); };
+    });
     try {
         const rowNum = nextRow.Client;
         const sheetNo = rowNum - 2;
@@ -406,7 +432,7 @@ async function writeClientFromComment(clientData, existingUsernames) {
 
         console.log(`  [SAVED CLIENT] @${username} via ${via} (row ${rowNum}, No=${sheetNo})`);
     } finally {
-        release();
+        if (lockState.release) lockState.release();
     }
 }
 
