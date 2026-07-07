@@ -6,7 +6,8 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 
 | Step | Method | Success |
 |------|--------|---------|
-| Hashtag discovery | Playwright → `/explore/search/keyword/?q=%23hashtag` + scroll | ✅ |
+| Hashtag discovery | Playwright → `/explore/search/keyword/?q=%23hashtag` + scroll + `img[alt]` username extraction | ✅ |
+| Username extraction | `img[alt="@username caption #hashtag..."]` inside `a[href="/p/"]` (React client-side rendering) | ✅ |
 | Post URLs | Extract `/p/SHORTCODE/` links (up to 50 per hashtag) | ✅ |
 | Post enrichment | API → `/api/v1/media/{mediaId}/info/` | ✅ 100% |
 | Profile enrichment | Playwright → `/{username}/` (og:meta + body) | ✅ |
@@ -15,7 +16,34 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 | Client discovery | Comment filtering + scoring (MUA excluded) | ✅ |
 | **Hashtag collection** | **Write new hashtags → VendorHashtags sheet** | ✅ |
 | **Scroll lazy-load** | **Hashtag search scrolls up to 10x to load ~50 posts** | ✅ |
-| Write to Sheets | Google Sheets API v4 | ✅ |
+| Write to Sheets | Google Sheets API v4 (guarded header writes — never overwrites data) | ✅ |
+
+## Classification System
+
+**Priority: Competitor (MUA) → Vendor (wedding services) → Client (everyone else)**
+
+| Type | Keywords / Triggers |
+|------|--------------------|
+| **Competitor** | mua, makeup artist, hairstylist, bridalmakeup, rias pengantin, hairmakeup |
+| **Vendor** | photographer, fotografer, videografer, catering, venue, dekorasi, gaun, kebaya, mc, organizer, salon, souvenir |
+| **Client** | Everyone else (also: fallback when bio empty + hashtag-based vendor detection) |
+
+> Photographer/fotografer → **Vendor** (PHOTOGRAPHER category), not Client. Videographer → **Vendor** (VIDEOGRAPHER).
+
+**Hashtag-based fallback:** When bio is empty or type is client, hashtags are scanned for vendor indicators (`#fotografer`, `#catering`, `#venue`, etc.) and type is upgraded accordingly.
+
+## Google Sheets Structure
+
+**Row 1 = EMPTY, Row 2 = Headers, Row 3+ = Data**
+
+Headers are only written once — `writeHeaders()` checks `Competitors!B2='Display Name'` before writing, preventing data overwrite on subsequent runs.
+
+| Sheet | Columns | Notes |
+|-------|---------|-------|
+| Competitors | No, Display Name, Profile URL, Username, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | Row 1=empty |
+| Vendor | No, Display Name, Profile URL, Username, Category, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | Row 1=empty |
+| Client | No, Profile URL, Username, Via, Source, Comment Text, Location, Date Comment | Row 1=empty |
+| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | B:F, Row 1=empty |
 
 ## Pipeline Flow
 
