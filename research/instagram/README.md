@@ -32,6 +32,17 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 
 **Hashtag-based fallback:** When bio is empty or type is client, hashtags are scanned for vendor indicators (`#fotografer`, `#catering`, `#venue`, etc.) and type is upgraded accordingly.
 
+## Location Detection
+
+**Scope: Jawa Tengah only.** Accounts outside Jawa Tengah return empty Location (not incorrectly tagged).
+
+**Detection priority:**
+1. Native location from Instagram JSON-LD schema (`address.addressLocality`) on profile page
+2. Bio text match against 105 Jawa Tengah cities/daerah (Semarang, Solo, Salatiga, Ungaran, Klaten, Pati, Kudus, Cepu, Banyumas, Cilacap, Wonogiri, Karanganyar, Sragen, Grobogan, Brebes, dll)
+3. Alias shortcuts: `smg`/`smgku` → Semarang, `solo`/`sby`/`surakarta` → Solo, `slg`/`slt` → Salatiga, `klt`/`kltn` → Klaten, `pkl` → Pekalongan, `jateng` → JawaTengah
+
+**Columns:** Location = specific city (e.g. "Semarang"), Region = hardcoded "JawaTengah"
+
 ## Google Sheets Structure
 
 **Row 1 = EMPTY, Row 2 = Headers, Row 3+ = Data**
