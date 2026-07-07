@@ -35,6 +35,7 @@ import {
     updateLastIndex,
     writeProfile,
     writeClientFromComment,
+    persistState,
 } from './src/sheets.js';
 import { HASHTAGS_PER_RUN, MAX_PROFILES_PER_RUN, MAX_COLLAB_DEPTH, REQUEST_DELAY, MAX_DISCOVERY_PROFILES } from './src/config.js';
 
@@ -218,7 +219,9 @@ async function run() {
     // 8. Cleanup
     await closeBrowser();
 
-    // 9. Summary
+    // 9. Persist row state to Setting sheet, then summary
+    await persistState();
+
     console.log('\n' + '='.repeat(60));
     console.log('[DONE] SCAN COMPLETE');
     console.log('='.repeat(60));

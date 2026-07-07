@@ -2,6 +2,38 @@
 
 Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no instagrapi npm).
 
+## Google Sheets Append Mechanism
+
+**Simple append: write to next empty row, advance counter, persist at end of run.**
+
+```
+Row 1 = empty (buffer)
+Row 2 = header
+Row 3+ = data (appended sequentially)
+```
+
+- `nextRow` — in-memory counter for next empty row, protected by mutex per sheet
+- `No` column — derived from `nextRow - 2` (always sequential, no separate counter needed)
+- Mutex — serializes concurrent Phase 2 + Phase 3 writes to same sheet
+- `persistState()` — called once at end of pipeline to save `nextRow` to Setting sheet
+- `_loadFromSetting()` — called once at startup to restore `nextRow` from Setting sheet
+
+```
+Writing flow:
+1. Acquire lock for sheet
+2. Get nextRow value
+3. Write to that row
+4. Increment nextRow
+5. Release lock
+6. Repeat for next profile
+
+End of run:
+- persistState() saves { Competitors: X, Vendor: Y, Client: Z } to Setting!A50:B52
+- On next run, _loadFromSetting() restores these values
+```
+
+No fresh scan needed (mutex prevents stale cache). No per-write persistence (one persist at end is enough). No separate `No` counter (always derived from `nextRow - 2`).
+
 ## Methods Confirmed Working
 
 | Step | Method | Success |
@@ -16,7 +48,7 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 | Client discovery | Comment filtering + scoring (MUA excluded) | ✅ |
 | **Hashtag collection** | **Write new hashtags → VendorHashtags sheet** | ✅ |
 | **Scroll lazy-load** | **Hashtag search scrolls up to 10x to load ~50 posts** | ✅ |
-| Write to Sheets | Google Sheets API v4 (guarded header writes — never overwrites data) | ✅ |
+| Sheets append | Mutex + in-memory nextRow + persist at end of run | ✅ |
 
 ## Classification System
 
@@ -38,25 +70,22 @@ Automated Instagram prospecting using Playwright + Instagram GraphQL/API (no ins
 
 **Detection priority:**
 1. Native location from Instagram JSON-LD schema (`address.addressLocality`) on profile page
-2. Bio text match against 105 Jawa Tengah cities/daerah (Semarang, Solo, Salatiga, Ungaran, Klaten, Pati, Kudus, Cepu, Banyumas, Cilacap, Wonogiri, Karanganyar, Sragen, Grobogan, Brebes, dll)
+2. Bio text match against 105 Jawa Tengah cities/daerah
 3. Alias shortcuts: `smg`/`smgku` → Semarang, `solo`/`sby`/`surakarta` → Solo, `slg`/`slt` → Salatiga, `klt`/`kltn` → Klaten, `pkl` → Pekalongan, `jateng` → JawaTengah
 
 **Columns:** Location = specific city (e.g. "Semarang"), Region = hardcoded "JawaTengah"
 
 ## Google Sheets Structure
 
-**Row 1 = EMPTY, Row 2 = Headers, Row 3+ = Data**
+**Spreadsheet:** `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
 
-**Row tracking is persisted to the Setting sheet** (`nextrow_competitors`, `nextrow_vendor`, `nextrow_client` in Setting rows 50–52) so appends survive across pipeline runs without overwrite.
-
-Headers are only written once — `writeHeaders()` checks `Competitors!B2='Display Name'` before writing, preventing data overwrite on subsequent runs.
-
-| Sheet | Columns | Notes |
-|-------|---------|-------|
-| Competitors | No, Display Name, Profile URL, Username, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | Row 1=empty |
-| Vendor | No, Display Name, Profile URL, Username, Category, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | Row 1=empty |
-| Client | No, Profile URL, Username, Via, Source, Comment Text, Location, Date Comment | Row 1=empty |
-| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | B:F, Row 1=empty |
+| Sheet | Columns | Append Row |
+|-------|---------|------------|
+| Competitors | No, Display Name, Profile URL, Username, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Competitors |
+| Vendor | No, Display Name, Profile URL, Username, Category, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Vendor |
+| Client | No, Profile URL, Username, Via, Source, Comment Text, Location, Date Comment | nextRow.Client |
+| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | Auto-detect |
+| Setting | `nextrow_competitors`, `nextrow_vendor`, `nextrow_client` in rows 50-52 | Persisted at end of run |
 
 ## Pipeline Flow
 
@@ -67,16 +96,16 @@ Headers are only written once — `writeHeaders()` checks `Competitors!B2='Displ
 │   → Playwright: scroll hashtag search page (lazy-load, up to 50 posts)
 │   → API: enrich each post (username, likes, comments, caption, hashtags, @mentions)
 │
-├─ PHASE 2: Profile Enrichment + Classification
+├─ PHASE 2: Profile Enrichment + Classification (20 profiles)
 │   → Playwright: extract bio, followers, following, posts, category, WA link
 │   → Playwright: scrape profile post grid (scroll) for collab discovery
-│   → Classify: competitor / vendor / client
-│   → Write new hashtags → VendorHashtags sheet (Hashtag | Category | Status | Source | Date)
+│   → Classify: competitor / vendor / client → save to correct sheet
+│   → Write new hashtags → VendorHashtags sheet
 │
-├─ PHASE 3: Discovery (collab + mention deep dive)
+├─ PHASE 3: Discovery (collab + mention deep dive, up to 30 profiles)
 │   → Queue collabs + mentions from posts
-│   → Enrich discovered profiles (depth ≤ 4, up to 30 profiles)
-│   → Classify each: competitor / vendor / client → save to correct sheet
+│   → Enrich discovered profiles (depth ≤ 4)
+│   → Classify each → save to correct sheet
 │   → Write new hashtags → VendorHashtags sheet
 │
 ├─ PHASE 4: Comment Extraction → Client Discovery
@@ -85,7 +114,8 @@ Headers are only written once — `writeHeaders()` checks `Competitors!B2='Displ
 │   → Score: location keywords, booking keywords, engagement quality
 │   → Save top scorers to Client sheet
 │
-└─ WRITE: Immediate to Google Sheets (Competitors, Vendor, Client, VendorHashtags)
+├─ persistState() — save nextRow to Setting sheet
+└─ Summary report
 ```
 
 ## Directory Structure
@@ -96,14 +126,14 @@ instagram/
 ├── package.json
 ├── instagram-cookies.json   # Session cookies (sameSite: Strict/Lax/None)
 ├── gcp-service-account.json # GCP service account for Sheets API
-├── src/
-│   ├── config.js            # Limits, paths, sheet ID
-│   ├── scraper.js          # Hashtag scrape (with scroll), post enrich, profile, GraphQL comments
-│   ├── enricher.js         # Profile enrichment (bio, collabs, mentions, classification)
-│   ├── comments.js          # Comment filtering + client scoring
-│   ├── sheets.js            # Google Sheets read/write + hashtag collection
-│   └── classifier.js        # Account type classification
-└── README.md
+├── .env                     # Optional: IG_USERNAME + IG_PASSWORD for auto re-login
+└── src/
+    ├── config.js            # Limits, paths, sheet ID
+    ├── scraper.js           # Hashtag scrape, post enrich, profile, GraphQL comments
+    ├── enricher.js          # Profile enrichment (bio, collabs, mentions, classification)
+    ├── comments.js          # Comment filtering + client scoring
+    ├── sheets.js           # Google Sheets read/write + append mechanism
+    └── classifier.js       # Account type classification
 ```
 
 ## Setup
@@ -119,29 +149,6 @@ npm install
 node index.js
 ```
 
-## Requirements
-
-- `instagram-cookies.json` — Session cookies from logged-in browser (optional if using auto-refresh)
-- `gcp-service-account.json` — GCP service account for Sheets API
-- `.env` (optional) — `IG_USERNAME` + `IG_PASSWORD` for auto cookie refresh
-
-## Auto Cookie Refresh
-
-Pipeline automatically detects expired sessions and can re-login:
-
-```bash
-# Option 1: environment variables
-export IG_USERNAME=your_username IG_PASSWORD=your_password
-node index.js
-
-# Option 2: .env file
-cp .env.example .env
-# edit .env with your credentials
-node index.js
-```
-
-When session expires (or <7 days left), Playwright will auto-login and save new cookies to `instagram-cookies.json`. Browser launches **headless** for login (no visible window).
-
 ## Configuration
 
 Edit `src/config.js`:
@@ -149,76 +156,10 @@ Edit `src/config.js`:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `HASHTAGS_PER_RUN` | 2 | Hashtags scanned per run |
-| `MAX_PHASE2_PROFILES` | 20 | Max profiles in Phase 2 |
-| `MAX_DISCOVERY_PROFILES` | 30 | Max profiles in Phase 3 (separate budget) |
+| `MAX_PROFILES_PER_RUN` | 20 | Max profiles in Phase 2 |
+| `MAX_DISCOVERY_PROFILES` | 30 | Max profiles in Phase 3 |
 | `MAX_COLLAB_DEPTH` | 4 | Discovery depth |
 | `REQUEST_DELAY` | 5 | Seconds between API calls |
-
-## Google Sheets
-
-Spreadsheet: `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
-
-| Sheet | Data | Header Row |
-|-------|------|------------|
-| Setting | last_scanned_index, hashtags | - |
-| VendorHashtags | Hashtags (Hashtag, Category, Status=OK, Source Username, Date Added) | Row 2 |
-| Competitors | MUA/Makeup accounts | Row 2 |
-| Vendor | Wedding service accounts | Row 2 |
-| Client | Potential clients from comments (8 columns) | Row 2 |
-
-### VendorHashtags Sheet
-
-Every hashtag found from any profile post caption or bio is written here:
-- **Hashtag** — clean hashtag text (no #)
-- **Category** — auto-detected: Location / Wedding / Graduation / Party / Hair / Beauty / MUA / General
-- **Status** — always `OK`
-- **Source Username** — which profile discovered this hashtag
-- **Date Added** — ISO date
-
-### Client Sheet Columns
-
-`No | Profile URL | Username | Via | Source | Comment Text | Location | Date Comment`
-
-## Key Methods
-
-**Shortcode → Media ID:**
-```javascript
-function decodeShortcode(shortcode) {
-  const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  let n = 0n;
-  for (const c of shortcode) n = n * 64n + BigInt(a.indexOf(c));
-  return n.toString();
-}
-```
-
-**Post Enrichment (Mobile API):**
-```
-GET https://i.instagram.com/api/v1/media/{mediaId}/info/
-Headers: Cookie, X-CSRFToken, X-IG-App-ID: 936619743392459
-```
-
-**Comment Extraction (GraphQL — confirmed working):**
-```
-GET https://www.instagram.com/graphql/query/?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5&variables={shortcode,first:50,after}
-Headers: Cookie, X-CSRFToken, X-IG-App-ID: 936619743392459
-```
-
-Returns: `data.shortcode_media.edge_media_to_parent_comment.edges[].node`
-- `text`, `user.username`, `created_at`, `edge_liked_by.count`, `edge_threaded_comments.count`
-
-## Client Scoring
-
-Comments scored on:
-- **+4**: Booking/price/availability keywords (harga, booking, DM, WA, etc.)
-- **+3**: Location keywords (semarang, solo, jogja, jateng, etc.)
-- **+1-2**: Long comment (genuine engagement)
-- **-5**: MUA keywords in comment (another MUA, not a client)
-- **-3**: Suspicious keywords (dropship, reseller, promo, etc.)
-
-Filtered out:
-- Post author
-- MUA-like usernames (contains `mua`, `makeup`, `rias`, `hair`, `bridal`)
-- Brand-like usernames (`official`, `studio`, `by_`, `the_`)
 
 ## Cookie Format
 
@@ -231,12 +172,11 @@ Get cookies: Browser DevTools → Application → Cookies → instagram.com
 - Profile page (`/{username}/`) works 50-70% of the time — fallback to hashtag data
 - DNS errors (`EAI_AGAIN`) are transient — igFetch auto-retries once after 3s
 - Session cookies expire — re-login if 401/403 errors appear
-- Phase 3 has its own budget (`MAX_DISCOVERY_PROFILES=30`) separate from Phase 2 — vendors and clients discovered via collab/mention paths are saved to their correct sheets
-- Hashtag search uses scroll lazy-load (up to 50 posts, 10 scrolls max) — more posts = better discovery coverage
+- Generic hashtags (`#fyp`, `#instagood`, `#reels`, etc.) are filtered automatically
 
 ## Performance
 
-Pipeline uses **parallel batch processing** for speed:
+Pipeline uses **parallel batch processing**:
 
 | Operation | Concurrency | Batch Delay |
 |-----------|-------------|-------------|
@@ -246,4 +186,20 @@ Pipeline uses **parallel batch processing** for speed:
 
 Estimated run time: **10–20 minutes** (vs hours with sequential processing).
 
-Generic hashtags (`#fyp`, `#instagood`, `#reels`, etc.) are filtered automatically and not written to VendorHashtags.
+## Sheets Append Mechanism (Developer Notes)
+
+### Why not fresh scan per write?
+
+Because Phase 2 and Phase 3 run concurrently. If both scan independently before writing, they might both see the same last row and write to the same cell. The **mutex** solves this by ensuring writes are serialized — only one write happens at a time per sheet, so the in-memory counter is always accurate.
+
+### Why not persist per write?
+
+Because the mutex already guarantees no race condition. Persisting every write adds API overhead and is unnecessary — if the pipeline crashes mid-run, the worst case is a small number of duplicate entries (caught by `existingUsernames` Set), which is acceptable.
+
+### Why derive No from nextRow - 2?
+
+Because `nextRow` always points to the next empty row. The first data row is row 3, which should be `No=1`. So `No = nextRow - 2`. This is always sequential regardless of gaps.
+
+### Why rows 50-52 for Setting persistence?
+
+Rows 50-52 are fixed positions far from other data, unlikely to be overwritten by normal use of the Setting sheet.

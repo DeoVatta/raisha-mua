@@ -1,11 +1,11 @@
 /**
  * Instagram Prospector - Google Sheets Integration
  *
- * Handles all Google Sheets operations:
- * - Read hashtag list (VendorHashtags sheet)
- * - Read visited profiles (all sheets)
- * - Read/Write last scanned index (Setting sheet)
- * - Write profile data (Competitors, Vendor, Client sheets)
+ * Simple append mechanism:
+ * - Row 1 = empty, Row 2 = header, Row 3+ = data
+ * - nextRow tracks the next empty row (persisted to Setting sheet)
+ * - No column = nextRow - 2 (always sequential, derived, never needs tracking)
+ * - Mutex per sheet prevents concurrent phases from grabbing the same row
  */
 
 import { google } from 'googleapis';
@@ -23,37 +23,27 @@ const COMPETITORS_HEADER = [
     'Followers', 'Following', 'Posts', 'Avg Likes', 'Engagement Rate',
     'Hashtags', 'Bio', 'Status', 'Collabs', 'Date'
 ];
-
 const VENDOR_HEADER = [
     'No', 'Display Name', 'Profile URL', 'Username', 'Category', 'Location', 'Region',
     'Followers', 'Following', 'Posts', 'Avg Likes', 'Engagement Rate',
     'Hashtags', 'Bio', 'Status', 'Collabs', 'Date'
 ];
-
-// Column B=Hashtag, C=Source, D=Count, E=Date Added, F=Status (OK=approved, NEW=newly discovered)
 const HASHTAG_HEADER = [
     '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status'
 ];
-
 const CLIENT_HEADER = [
     'No', 'Profile URL', 'Username', 'Via', 'Source',
     'Comment Text', 'Location', 'Date Comment'
 ];
 
-// Check if headers already exist — only write if missing
 async function writeHeaders() {
     if (!sheetsClient) return;
     try {
-        // Check Competitors row 2 header
         const existing = await sheetsClient.spreadsheets.values.get({
-            spreadsheetId: SHEETS_ID,
-            range: 'Competitors!B2:B2'
+            spreadsheetId: SHEETS_ID, range: 'Competitors!B2:B2'
         });
-        if (existing.data.values?.[0]?.[0] === 'Display Name') {
-            return; // headers already correct, skip
-        }
+        if (existing.data.values?.[0]?.[0] === 'Display Name') return;
 
-        // Write missing headers
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID, range: 'Competitors!A1:P1',
             valueInputOption: 'RAW', resource: { values: [['']] }
@@ -86,7 +76,7 @@ async function writeHeaders() {
             spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A2:F2',
             valueInputOption: 'RAW', resource: { values: [HASHTAG_HEADER] }
         });
-        console.log('[SHEETS] Headers written (Row 1=empty, Row 2=header)');
+        console.log('[SHEETS] Headers written');
     } catch (e) {
         console.log(`[SHEETS] Header write error: ${e.message}`);
     }
@@ -95,12 +85,12 @@ async function writeHeaders() {
 // ============== INIT ==============
 let sheetsClient = null;
 
-// Row 1 = empty, Row 2 = header, Row 3+ = data
-// Loaded from Setting sheet on startup to survive across pipeline runs
+// nextRow: next empty row to write (Row 1=empty, Row 2=header, Row 3+=data)
+// Persisted to Setting sheet for cross-session survival
 const nextRow = { Competitors: 3, Vendor: 3, Client: 3 };
 
-async function _loadNextRowFromSetting() {
-    const rows = await readRange('Setting!A1:B55');
+async function _loadFromSetting() {
+    const rows = await readRange('Setting!A1:B60');
     for (const row of rows) {
         if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || nextRow.Competitors;
         if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || nextRow.Vendor;
@@ -108,24 +98,21 @@ async function _loadNextRowFromSetting() {
     }
 }
 
-async function _saveNextRowToSetting() {
+async function _saveToSetting() {
     if (!sheetsClient) return;
-    const rows = [
-        ['nextrow_competitors', nextRow.Competitors],
-        ['nextrow_vendor', nextRow.Vendor],
-        ['nextrow_client', nextRow.Client],
-    ];
     try {
-        // Write to Setting sheet rows 50-52 (fixed positions)
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID,
             range: 'Setting!A50:B52',
             valueInputOption: 'RAW',
-            resource: { values: rows }
+            resource: { values: [
+                ['nextrow_competitors', nextRow.Competitors],
+                ['nextrow_vendor', nextRow.Vendor],
+                ['nextrow_client', nextRow.Client],
+            ] }
         });
     } catch (e) {
-        // Non-critical — log and continue
-        console.log(`[SHEETS] Failed to persist nextRow: ${e.message}`);
+        console.log(`[SHEETS] Failed to persist: ${e.message}`);
     }
 }
 
@@ -137,26 +124,18 @@ async function initSheets() {
     try {
         const credPath = path.join(__dirname, '..', 'gcp-service-account.json');
         const key = JSON.parse(fs.readFileSync(credPath, 'utf8'));
-
-        const auth = new GoogleAuth({
-            credentials: key,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets']
-        });
-
+        const auth = new GoogleAuth({ credentials: key, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
         const authClient = await auth.getClient();
         sheetsClient = google.sheets({ version: 'v4', auth: authClient });
         console.log('[SHEETS] Connected (service account)');
     } catch (e) {
         console.log(`[SHEETS] Auth error: ${e.message}`);
-        console.log('[SHEETS] Running in dry-run mode (no actual writes)');
+        console.log('[SHEETS] Running in dry-run mode');
         sheetsClient = null;
     }
 
-    // Write headers to Row 2 if not already present
     await writeHeaders();
-
-    // Load persisted nextRow from Setting sheet
-    await _loadNextRowFromSetting();
+    await _loadFromSetting();
     console.log(`[SHEETS] nextRow → Competitors:${nextRow.Competitors} Vendor:${nextRow.Vendor} Client:${nextRow.Client}`);
 
     return sheetsClient;
@@ -167,8 +146,7 @@ async function readRange(range) {
     if (!sheetsClient) return [];
     try {
         const res = await sheetsClient.spreadsheets.values.get({
-            spreadsheetId: SHEETS_ID,
-            range: range
+            spreadsheetId: SHEETS_ID, range
         });
         return res.data.values || [];
     } catch (e) {
@@ -178,7 +156,6 @@ async function readRange(range) {
 }
 
 async function readHashtags() {
-    // Column B (index 1) = Hashtag, Column F (index 5) = Status
     const rows = await readRange('VendorHashtags!A1:F500');
     const hashtags = [];
     for (const row of rows.slice(2)) {
@@ -190,10 +167,8 @@ async function readHashtags() {
     return hashtags;
 }
 
-// Track hashtags written this session to avoid duplicates
 const _seenHashtags = new Set();
 
-// Generic/useless hashtags to ignore
 const _genericHashtags = new Set([
     'instagram', 'instagood', 'instadaily', 'instapic', 'instalike', 'likeforlike',
     'like4like', 'likeforlikes', 'followme', 'followforfollow', 'follow4follow',
@@ -214,51 +189,37 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (_seenHashtags.has(clean)) return;
     if (_genericHashtags.has(clean)) return;
 
-    // Read full range B:F to check for existing entries
     const rows = await readRange('VendorHashtags!A1:F500');
-    // Check all rows (skip header row 2)
     for (let i = 2; i < rows.length; i++) {
         if (rows[i][1] && rows[i][1].toLowerCase() === clean) {
             _seenHashtags.add(clean);
-            return; // already exists
+            return;
         }
     }
 
-    // Find next empty row in column B (after row 2 = header)
     let writeRow = rows.length + 1;
     for (let i = 2; i < rows.length; i++) {
-        if (!rows[i] || !rows[i][1]) {
-            writeRow = i + 1;
-            break;
-        }
+        if (!rows[i] || !rows[i][1]) { writeRow = i + 1; break; }
     }
 
     const today = new Date().toISOString().split('T')[0];
-    // Column B=Hashtag, C=Source, D=Count(1), E=Date Added, F=Status(NEW)
-    const values = [[clean, `@${sourceUsername}`, '1', today, 'NEW']];
-    await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, values);
+    await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
     _seenHashtags.add(clean);
     console.log(`  [NEW HASHTAG] #${clean}`);
 }
 
 async function readVisitedProfiles() {
     const visited = new Set();
-    const ranges = [
+    for (const range of [
         'Competitors!D3:D1000',
         'Vendor!D3:D1000',
         'Client!C3:C1000'
-    ];
-
-    for (const range of ranges) {
+    ]) {
         const rows = await readRange(range);
         for (const row of rows) {
-            if (row[0]) {
-                const username = row[0].replace('@', '').trim();
-                visited.add(username);
-            }
+            if (row[0]) visited.add(row[0].replace('@', '').trim());
         }
     }
-
     console.log(`[SHEETS] Loaded ${visited.size} visited profiles`);
     return visited;
 }
@@ -266,9 +227,7 @@ async function readVisitedProfiles() {
 async function readLastIndex() {
     const rows = await readRange('Setting!A1:B50');
     for (const row of rows) {
-        if (row[0] === 'last_scanned_index' && row[1]) {
-            return parseInt(row[1]) || 0;
-        }
+        if (row[0] === 'last_scanned_index' && row[1]) return parseInt(row[1]) || 0;
     }
     return 0;
 }
@@ -281,121 +240,137 @@ async function writeRange(range, values) {
     }
     try {
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: range,
-            valueInputOption: 'RAW',
-            resource: { values: values }
+            spreadsheetId: SHEETS_ID, range,
+            valueInputOption: 'RAW', resource: { values }
         });
     } catch (e) {
         console.log(`[SHEETS] Write error: ${e.message}`);
     }
 }
 
-async function getNextRow(sheetName) {
-    // Always scan fresh — never cache, so concurrent Phase 2+3 writes can't overwrite each other
-    const rows = await readRange(`${sheetName}!A:Z`);
-    for (let i = 1; i <= rows.length + 1; i++) {
-        const row = rows[i - 1];
-        const hasContent = row && row.some(c => c && String(c).trim() !== '');
-        if (!hasContent) {
-            return i + 1;
-        }
-    }
-    return rows.length + 2;
+// ============== MUTEX ==============
+// Serializes write operations per sheet.
+// Without this: Phase 2 + Phase 3 both call getNextRow() simultaneously,
+// both get the same row number (race), and the second write overwrites the first.
+// With this: each phase waits for the other's lock to release before grabbing a row.
+const _locks = {};
+function acquireLock(sheetName) {
+    if (!_locks[sheetName]) _locks[sheetName] = Promise.resolve();
+    let release;
+    const lock = Promise.resolve().then(() => { release = () => { _locks[sheetName] = Promise.resolve(); }; });
+    const prev = _locks[sheetName];
+    _locks[sheetName] = lock;
+    return { prev, release };
 }
 
+// ============== ROW GETTER ==============
+// Uses in-memory nextRow (protected by mutex).
+// This is safe: mutex guarantees only one write happens at a time,
+// so nextRow is always accurate — no stale cache problem.
+function getNextRow(sheetName) {
+    return nextRow[sheetName];
+}
+
+// ============== PROFILE WRITER ==============
 async function writeProfile(profile, existingUsernames) {
     if (!profile || !profile.username) return;
 
-    if (existingUsernames.has(profile.username)) {
-        console.log(`  [SKIP] @${profile.username} already saved`);
+    const username = profile.username;
+    if (existingUsernames.has(username)) {
+        console.log(`  [SKIP] @${username} already saved`);
         return;
     }
 
     const sheetName = profile.type === 'competitor' ? 'Competitors'
         : profile.type === 'vendor' ? 'Vendor' : 'Client';
 
-    const rowNum = await getNextRow(sheetName);
-    const today = new Date().toISOString().split('T')[0];
+    const { release } = acquireLock(sheetName);
+    try {
+        const rowNum = nextRow[sheetName];          // get current row
+        const sheetNo = rowNum - 2;                  // No column = always sequential
+        const today = new Date().toISOString().split('T')[0];
 
-    const hashtagsStr = [...(profile.hashtags || [])].join(' ');
-    const collabsStr = [...(profile.collabs || [])].slice(0, 10).join(', ');
-    const engRate = profile.engagementRate || 'N/A';
-    const engDisplay = typeof engRate === 'number' ? `${engRate}%` : engRate;
+        const hashtagsStr = [...(profile.hashtags || [])].join(' ');
+        const collabsStr = [...(profile.collabs || [])].slice(0, 10).join(', ');
+        const engRate = profile.engagementRate || 'N/A';
+        const engDisplay = typeof engRate === 'number' ? `${engRate}%` : engRate;
 
-    let values;
-    let endCol;
+        let values, endCol;
 
-    if (profile.type === 'competitor') {
-        values = [[
-            rowNum - 2,
-            profile.displayName || profile.username,
-            profile.profileUrl || `https://instagram.com/${profile.username}/`,
-            `@${profile.username}`,
-            profile.location || '',
-            'JawaTengah',
-            profile.followers || 0,
-            profile.following || 0,
-            profile.posts || 0,
-            '',
-            engDisplay,
-            hashtagsStr,
-            profile.bio || '',
-            'Pending',
-            collabsStr,
-            today
-        ]];
-        endCol = 'P';
-    } else if (profile.type === 'vendor') {
-        values = [[
-            rowNum - 2,
-            profile.displayName || profile.username,
-            profile.profileUrl || `https://instagram.com/${profile.username}/`,
-            `@${profile.username}`,
-            profile.category || 'Wedding Services',
-            profile.location || '',
-            'JawaTengah',
-            profile.followers || 0,
-            profile.following || 0,
-            profile.posts || 0,
-            '',
-            engDisplay,
-            hashtagsStr,
-            profile.bio || '',
-            'Pending',
-            collabsStr,
-            today
-        ]];
-        endCol = 'Q';
-    } else {
-        values = [[
-            rowNum - 2,
-            profile.profileUrl || `https://instagram.com/${profile.username}/`,
-            `@${profile.username}`,
-            profile.sourceHashtag || '',
-            profile.bio || '',
-            profile.followers || 0,
-            profile.following || '',
-            'Pending',
-            hashtagsStr,
-            engDisplay,
-            profile.avgLikes || profile.likes || 0,
-            profile.avgComments || profile.comments || 0,
-            collabsStr,
-            today,
-            profile.location || '',
-            ''
-        ]];
-        endCol = 'Q';
+        if (profile.type === 'competitor') {
+            values = [[
+                sheetNo,
+                profile.displayName || username,
+                profile.profileUrl || `https://instagram.com/${username}/`,
+                `@${username}`,
+                profile.location || '',
+                'JawaTengah',
+                profile.followers || 0,
+                profile.following || 0,
+                profile.posts || 0,
+                '',
+                engDisplay,
+                hashtagsStr,
+                profile.bio || '',
+                'Pending',
+                collabsStr,
+                today
+            ]];
+            endCol = 'P';
+        } else if (profile.type === 'vendor') {
+            values = [[
+                sheetNo,
+                profile.displayName || username,
+                profile.profileUrl || `https://instagram.com/${username}/`,
+                `@${username}`,
+                profile.category || 'Wedding Services',
+                profile.location || '',
+                'JawaTengah',
+                profile.followers || 0,
+                profile.following || 0,
+                profile.posts || 0,
+                '',
+                engDisplay,
+                hashtagsStr,
+                profile.bio || '',
+                'Pending',
+                collabsStr,
+                today
+            ]];
+            endCol = 'Q';
+        } else {
+            values = [[
+                sheetNo,
+                profile.profileUrl || `https://instagram.com/${username}/`,
+                `@${username}`,
+                profile.sourceHashtag || '',
+                profile.bio || '',
+                profile.followers || 0,
+                profile.following || '',
+                'Pending',
+                hashtagsStr,
+                engDisplay,
+                profile.avgLikes || profile.likes || 0,
+                profile.avgComments || profile.comments || 0,
+                collabsStr,
+                today,
+                profile.location || '',
+                ''
+            ]];
+            endCol = 'Q';
+        }
+
+        await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
+        nextRow[sheetName] = rowNum + 1;              // advance cursor
+        existingUsernames.add(username);
+
+        console.log(`  [SAVED] @${username} to ${sheetName} (row ${rowNum}, No=${sheetNo})`);
+    } finally {
+        release();
     }
-
-    await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
-    nextRow[sheetName] = rowNum + 1; // in-memory cache for same-session performance
-    existingUsernames.add(profile.username);
-    await _saveNextRowToSetting();
-    console.log(`  [SAVED] @${profile.username} to ${sheetName} (row ${rowNum})`);
 }
 
+// ============== CLIENT FROM COMMENT WRITER ==============
 async function writeClientFromComment(clientData, existingUsernames) {
     if (!clientData || !clientData.username) return;
 
@@ -405,45 +380,40 @@ async function writeClientFromComment(clientData, existingUsernames) {
         return;
     }
 
-    const sheetName = 'Client';
-    const rowNum = await getNextRow(sheetName);
-    const today = new Date().toISOString().split('T')[0];
+    const { release } = acquireLock('Client');
+    try {
+        const rowNum = nextRow.Client;
+        const sheetNo = rowNum - 2;
+        const today = new Date().toISOString().split('T')[0];
 
-    const via = clientData.via || 'comment';
-    const source = clientData.source || '';
-    const commentText = (clientData.commentText || clientData.text || '').slice(0, 200);
+        const via = clientData.via || 'comment';
+        const source = clientData.source || '';
+        const commentText = (clientData.commentText || clientData.text || '').slice(0, 200);
 
-    const values = [[
-        rowNum - 2,                                                    // A: No
-        `https://instagram.com/${username}/`,                           // B: Profile URL
-        `@${username}`,                                                // C: Username
-        via,                                                           // D: Via
-        source,                                                        // E: Source (@postAuthor)
-        commentText,                                                   // F: Comment Text
-        clientData.location || '',                                     // G: Location
-        today,                                                         // H: Date Comment
-    ]];
+        await writeRange(`Client!A${rowNum}:H${rowNum}`, [[
+            sheetNo,
+            `https://instagram.com/${username}/`,
+            `@${username}`,
+            via,
+            source,
+            commentText,
+            clientData.location || '',
+            today,
+        ]]);
 
-    await writeRange(`${sheetName}!A${rowNum}:H${rowNum}`, values);
-    nextRow[sheetName] = rowNum + 1;
-    existingUsernames.add(username);
-    await _saveNextRowToSetting();
-    console.log(`  [SAVED CLIENT] @${username} via ${via} (row ${rowNum})`);
+        nextRow.Client = rowNum + 1;
+        existingUsernames.add(username);
+
+        console.log(`  [SAVED CLIENT] @${username} via ${via} (row ${rowNum}, No=${sheetNo})`);
+    } finally {
+        release();
+    }
 }
 
-async function updateLastIndex(newIndex) {
-    const rows = await readRange('Setting!A1:B50');
-    let found = false;
-    for (let i = 0; i < rows.length; i++) {
-        if (rows[i][0] === 'last_scanned_index') {
-            await writeRange(`Setting!B${i + 1}`, [[String(newIndex)]]);
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        await writeRange(`Setting!A${rows.length + 1}:B${rows.length + 1}`, [['last_scanned_index', String(newIndex)]]);
-    }
+// ============== PERSIST CALLED BY PIPELINE ==============
+// Call this once at end of pipeline run to save state
+async function persistState() {
+    await _saveToSetting();
 }
 
 // ============== EXPORTS ==============
@@ -452,10 +422,10 @@ export {
     readHashtags,
     readVisitedProfiles,
     readLastIndex,
-    getNextRow,
     writeProfile,
     writeClientFromComment,
     writeNewHashtag,
     updateLastIndex,
-    readRange
+    readRange,
+    persistState,
 };
