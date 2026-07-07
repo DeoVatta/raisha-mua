@@ -12,7 +12,7 @@ import {
     scrapeProfilePosts,
     initBrowser,
 } from './scraper.js';
-import { classifyAccount, detectCategory, detectLocation, calculateEngagement } from './classifier.js';
+import { classifyAccount, classifyFromHashtags, detectCategory, detectLocation, calculateEngagement } from './classifier.js';
 import { REQUEST_DELAY } from './config.js';
 import { writeNewHashtag } from './sheets.js';
 
@@ -32,10 +32,11 @@ async function enrichProfilesBatch(posts, maxProfiles, concurrency = 2, batchDel
     const unique = [];
     const seen = new Set();
     for (const p of posts) {
-        if (!seen.has(p.username)) {
-            seen.add(p.username);
-            unique.push(p);
-        }
+        // Shortcode is always present; username may be empty → OR-safe
+        const key = p.shortcode;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(p);
         if (unique.length >= maxProfiles) break;
     }
 
@@ -122,11 +123,11 @@ async function enrichProfile(username, postData = null) {
             profile.engagementRate = 0;
         }
 
-        // If bio is empty, try to classify from hashtags
-        if (profile.type === 'client' && profile.hashtags.size > 0) {
-            const tagText = [...profile.hashtags].join(' ');
-            profile.type = classifyAccount(tagText, '');
-            profile.category = detectCategory(tagText, '', profile.type);
+        // If bio is empty OR type is still client, try classify from hashtags
+        const hasBio = (profile.bio || '').trim().length > 5;
+        if (!hasBio || (profile.type === 'client' && profile.hashtags.size > 0)) {
+            profile.type = classifyFromHashtags([...profile.hashtags]);
+            profile.category = detectCategory([...profile.hashtags].join(' '), '', profile.type);
         }
 
         console.log(`  [CLASSIFY] ${profile.type} | ${profile.category} | ${profile.location || 'N/A'}`);

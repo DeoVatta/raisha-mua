@@ -30,10 +30,9 @@ const VENDOR_HEADER = [
     'Hashtags', 'Bio', 'Status', 'Collabs', 'Date'
 ];
 
-// Column layout: A=empty, B=Hashtag, C=Source, D=Count, E=Date Added, F=Status
-// New hashtags discovered by scraper → column G:H:I (dedicated section)
+// Column B=Hashtag, C=Source, D=Count, E=Date Added, F=Status (OK=approved, NEW=newly discovered)
 const HASHTAG_HEADER = [
-    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status', 'New Hashtag', 'Source', 'Date Added'
+    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status'
 ];
 
 const CLIENT_HEADER = [
@@ -41,56 +40,51 @@ const CLIENT_HEADER = [
     'Comment Text', 'Location', 'Date Comment'
 ];
 
+// Check if headers already exist — only write if missing
 async function writeHeaders() {
     if (!sheetsClient) return;
     try {
-        await sheetsClient.spreadsheets.values.update({
+        // Check Competitors row 2 header
+        const existing = await sheetsClient.spreadsheets.values.get({
             spreadsheetId: SHEETS_ID,
-            range: 'Competitors!A1:P1',
-            valueInputOption: 'RAW',
-            resource: { values: [['']] }  // Row 1 = empty
+            range: 'Competitors!B2:B2'
+        });
+        if (existing.data.values?.[0]?.[0] === 'Display Name') {
+            return; // headers already correct, skip
+        }
+
+        // Write missing headers
+        await sheetsClient.spreadsheets.values.update({
+            spreadsheetId: SHEETS_ID, range: 'Competitors!A1:P1',
+            valueInputOption: 'RAW', resource: { values: [['']] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'Competitors!A2:P2',
-            valueInputOption: 'RAW',
-            resource: { values: [COMPETITORS_HEADER] }
+            spreadsheetId: SHEETS_ID, range: 'Competitors!A2:P2',
+            valueInputOption: 'RAW', resource: { values: [COMPETITORS_HEADER] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'Vendor!A1:Q1',
-            valueInputOption: 'RAW',
-            resource: { values: [['']] }
+            spreadsheetId: SHEETS_ID, range: 'Vendor!A1:Q1',
+            valueInputOption: 'RAW', resource: { values: [['']] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'Vendor!A2:Q2',
-            valueInputOption: 'RAW',
-            resource: { values: [VENDOR_HEADER] }
+            spreadsheetId: SHEETS_ID, range: 'Vendor!A2:Q2',
+            valueInputOption: 'RAW', resource: { values: [VENDOR_HEADER] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'Client!A1:H1',
-            valueInputOption: 'RAW',
-            resource: { values: [['']] }
+            spreadsheetId: SHEETS_ID, range: 'Client!A1:H1',
+            valueInputOption: 'RAW', resource: { values: [['']] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'Client!A2:H2',
-            valueInputOption: 'RAW',
-            resource: { values: [CLIENT_HEADER] }
+            spreadsheetId: SHEETS_ID, range: 'Client!A2:H2',
+            valueInputOption: 'RAW', resource: { values: [CLIENT_HEADER] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'VendorHashtags!A1:A1',
-            valueInputOption: 'RAW',
-            resource: { values: [['']] }
+            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A1:F1',
+            valueInputOption: 'RAW', resource: { values: [['']] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID,
-            range: 'VendorHashtags!A2:I2',
-            valueInputOption: 'RAW',
-            resource: { values: [HASHTAG_HEADER] }
+            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A2:F2',
+            valueInputOption: 'RAW', resource: { values: [HASHTAG_HEADER] }
         });
         console.log('[SHEETS] Headers written (Row 1=empty, Row 2=header)');
     } catch (e) {
@@ -153,11 +147,11 @@ async function readHashtags() {
     const rows = await readRange('VendorHashtags!A1:F500');
     const hashtags = [];
     for (const row of rows.slice(2)) {
-        if (row.length >= 6 && row[1] && row[5] === 'OK') {
+        if (row.length >= 6 && row[1] && (row[5] === 'OK' || row[5] === 'NEW')) {
             hashtags.push(row[1]);
         }
     }
-    console.log(`[SHEETS] Loaded ${hashtags.length} approved hashtags`);
+    console.log(`[SHEETS] Loaded ${hashtags.length} hashtags (OK + NEW)`);
     return hashtags;
 }
 
@@ -185,30 +179,29 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (_seenHashtags.has(clean)) return;
     if (_genericHashtags.has(clean)) return;
 
-    // Read full range A:I to check for existing entries
-    const rows = await readRange('VendorHashtags!A1:I500');
-    // Column G (index 6) = New Hashtag
-    for (const row of rows) {
-        if (row[6] && row[6].toLowerCase() === clean) {
+    // Read full range B:F to check for existing entries
+    const rows = await readRange('VendorHashtags!A1:F500');
+    // Check all rows (skip header row 2)
+    for (let i = 2; i < rows.length; i++) {
+        if (rows[i][1] && rows[i][1].toLowerCase() === clean) {
             _seenHashtags.add(clean);
-            return;
+            return; // already exists
         }
     }
 
-    // Find next empty row in column G, starting from row 3 (row 2 = header)
+    // Find next empty row in column B (after row 2 = header)
     let writeRow = rows.length + 1;
     for (let i = 2; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || !row[6]) {
+        if (!rows[i] || !rows[i][1]) {
             writeRow = i + 1;
             break;
         }
     }
 
     const today = new Date().toISOString().split('T')[0];
-    // Column G=New Hashtag, H=Source, I=Date Added
-    const values = [[clean, `@${sourceUsername}`, today]];
-    await writeRange(`VendorHashtags!G${writeRow}:I${writeRow}`, values);
+    // Column B=Hashtag, C=Source, D=Count(1), E=Date Added, F=Status(NEW)
+    const values = [[clean, `@${sourceUsername}`, '1', today, 'NEW']];
+    await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, values);
     _seenHashtags.add(clean);
     console.log(`  [NEW HASHTAG] #${clean}`);
 }

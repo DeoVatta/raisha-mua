@@ -20,7 +20,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const COOKIES_FILE = path.join(__dirname, 'instagram-cookies.json');
+const COOKIES_FILE = path.join(__dirname, '..', 'instagram-cookies.json');
 const IG_USERNAME = process.env.IG_USERNAME || '';
 const IG_PASSWORD = process.env.IG_PASSWORD || '';
 
@@ -83,47 +83,111 @@ async function loginInstagram(username, password) {
         window.chrome = { runtime: {} };
     });
 
+    async function findInput(selector, label) {
+        const selectors = typeof selector === 'string'
+            ? [selector]
+            : selector;
+        for (const s of selectors) {
+            try {
+                const el = page.locator(s).first();
+                if (await el.isVisible({ timeout: 3000 })) {
+                    console.log(`[AUTH] Found ${label} via: ${s}`);
+                    return el;
+                }
+            } catch { /* try next */ }
+        }
+        return null;
+    }
+
     try {
         // Navigate to login page
         await page.goto('https://www.instagram.com/accounts/login/', { timeout: 30000 });
         await page.waitForTimeout(3000);
 
-        // Fill username
-        const usernameInput = page.locator('input[name="username"], input[aria-label="Username"]').first();
-        await usernameInput.waitFor({ timeout: 10000 });
+        // Check for "This was you?" challenge page
+        const challengeText = await page.locator('text="This was you?"').isVisible().catch(() => false);
+        if (challengeText) {
+            console.log('[AUTH] Detected "This was you?" challenge — clicking Yes');
+            await page.locator('button:has-text("Yes")').first().click();
+            await page.waitForTimeout(3000);
+        }
+
+        // Try multiple selectors for username input
+        const usernameSelectors = [
+            'input[name="username"]',
+            'input[aria-label="Username"]',
+            'input[placeholder*="username" i]',
+            'input[placeholder*="Phone" i]',
+            'input[type="text"]',
+            'input#email',
+        ];
+        const usernameInput = await findInput(usernameSelectors, 'username');
+        if (!usernameInput) throw new Error('Could not find username input');
         await usernameInput.fill(username);
         await page.waitForTimeout(500);
 
-        // Fill password
-        const passwordInput = page.locator('input[name="password"], input[aria-label="Password"]').first();
+        // Try multiple selectors for password input
+        const passwordSelectors = [
+            'input[name="password"]',
+            'input[aria-label="Password"]',
+            'input[placeholder*="password" i]',
+            'input[type="password"]',
+        ];
+        const passwordInput = await findInput(passwordSelectors, 'password');
+        if (!passwordInput) throw new Error('Could not find password input');
         await passwordInput.fill(password);
         await page.waitForTimeout(500);
 
-        // Click login button
-        const loginBtn = page.locator('button[type="submit"]').first();
-        await loginBtn.click();
-        await page.waitForTimeout(5000);
-
-        // Check if login succeeded (URL changed away from login)
-        const url = page.url();
-        if (url.includes('/accounts/login')) {
-            // Might need to handle "Save Info" prompt or "Not Now"
-            const saveInfoBtn = page.locator('button:has-text("Save Info"), button:has-text("Not Now")').first();
+        // Submit: try multiple submit buttons
+        const submitSelectors = [
+            'button[type="submit"]',
+            'button:has-text("Log in")',
+            'button:has-text("Log in")',
+            'button:has-text("Sign in")',
+            'div[role="button"]:has-text("Log in")',
+        ];
+        let clicked = false;
+        for (const s of submitSelectors) {
             try {
-                await saveInfoBtn.waitFor({ timeout: 5000 });
-                await saveInfoBtn.click();
-                await page.waitForTimeout(2000);
-            } catch (e) { /* no prompt */ }
-
-            const finalUrl = page.url();
-            if (finalUrl.includes('/accounts/login')) {
-                console.log('[AUTH] Login FAILED — check credentials');
-                await browser.close();
-                return null;
-            }
+                const btn = page.locator(s).first();
+                if (await btn.isVisible({ timeout: 2000 })) {
+                    await btn.click();
+                    clicked = true;
+                    console.log(`[AUTH] Clicked submit: ${s}`);
+                    break;
+                }
+            } catch { /* try next */ }
+        }
+        if (!clicked) {
+            // Try pressing Enter on password field
+            await passwordInput.press('Enter');
+            console.log('[AUTH] Pressed Enter on password field');
         }
 
-        console.log(`[AUTH] Login SUCCESS — URL: ${page.url()}`);
+        await page.waitForTimeout(6000);
+
+        // Handle "Save Info" / "Not Now" prompt
+        try {
+            const saveBtn = page.locator('button:has-text("Save Info"), button:has-text("Not Now")').first();
+            if (await saveBtn.isVisible({ timeout: 5000 })) {
+                await saveBtn.click();
+                console.log('[AUTH] Handled save info prompt');
+                await page.waitForTimeout(2000);
+            }
+        } catch { /* no prompt */ }
+
+        const url = page.url();
+        console.log(`[AUTH] After login URL: ${url}`);
+
+        if (url.includes('/accounts/login')) {
+            // Still on login page — check for error message
+            const errorText = await page.locator('#slfErrorAlert, [role="alert"]').textContent().catch(() => '');
+            console.log(`[AUTH] Login FAILED — ${errorText || 'check credentials'}`);
+            await browser.close();
+            return null;
+        }
+
+        console.log(`[AUTH] Login SUCCESS`);
         await page.waitForTimeout(3000);
 
         // Extract cookies
@@ -176,7 +240,13 @@ export async function ensureAuth() {
         process.exit(1);
     }
 
-    await saveCookies(newCookies);
-    console.log('[AUTH] New cookies saved — ready to run');
+    // Only save if login actually succeeded with a sessionid
+    const loginHasSessionId = newCookies.some(c => c.name === 'sessionid' && c.value);
+    if (loginHasSessionId) {
+        await saveCookies(newCookies);
+        console.log('[AUTH] New cookies saved — ready to run');
+    } else {
+        console.log('[AUTH] Login did not return sessionid — cookies NOT saved');
+    }
     return newCookies;
 }
