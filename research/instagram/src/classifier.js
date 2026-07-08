@@ -90,18 +90,13 @@ export const INDONESIAN_CITIES = [
 ];
 
 // Indonesian words that strongly indicate account is Indonesian
+// Note: Indonesian cities are in INDONESIAN_CITIES, not here (avoid duplication)
 export const INDONESIAN_WORDS = [
-    'menikah', 'pernikahan', 'resepsi', 'undangan', 'nikah', 'akad',
-    'suami', 'istri', 'mempelai', 'pengantin', 'rias', 'rias pengantin',
+    'menikah', 'pernikahan', 'resepsi', 'undangan nikah', 'akad',
+    'suami', 'istri', 'mempelai', 'pengantin',
     '+62', 'wa.me', 'whatsapp', 'whats app', 'line:', 'telegram:',
-    'allah', 'jannah', 'khotbah', 'pengajian', 'khotmil', 'salat', 'dakwah',
+    'allah', 'jannah', 'khotbah', 'pengajian', 'khotmil', 'dakwah',
     'mualaf', 'muslimah', 'muslim', 'islami', 'hijab', 'jilbab',
-    'surabaya', 'semarang', 'jakarta', 'bandung', 'yogyakarta', 'solo',
-    'jogja', 'bali', 'malang', 'medan', 'pontianak', 'makassar',
-    'tangerang', 'bekasi', 'bogor', 'depok', 'cilacap', 'purwokerto',
-    'kudus', 'pati', 'karanganyar', 'ungaran', 'salatiga', 'klaten',
-    'sragen', 'wonogiri', 'boyolali', 'grobogan', 'kudus', 'pati',
-    'cepu', 'tegal', 'pekalongan', 'brebes', 'garut', 'cirebon',
 ];
 
 function wordBoundaryMatch(text, keyword) {

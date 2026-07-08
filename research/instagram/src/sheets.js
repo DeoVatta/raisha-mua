@@ -312,6 +312,7 @@ async function writeProfile(profile, existingUsernames) {
         // Only save accounts with Indonesian indicators
         if (!isIndonesian(profile.bio || '', [...(profile.hashtags || [])], profile.nativeLocation || '')) {
             console.log(`  [SKIP] @${username} — not Indonesian`);
+            if (lockState.release) lockState.release();
             return;
         }
 
