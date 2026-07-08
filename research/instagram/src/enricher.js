@@ -13,7 +13,7 @@ import {
     initBrowser,
 } from './scraper.js';
 import { classifyAccount, classifyFromHashtags, detectCategory, detectLocation, calculateEngagement } from './classifier.js';
-import { REQUEST_DELAY } from './config.js';
+import { REQUEST_DELAY, PROFILES_PER_HASHTAG } from './config.js';
 import { writeNewHashtag } from './sheets.js';
 
 function sleep(ms) {

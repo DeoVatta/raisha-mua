@@ -37,7 +37,19 @@ import {
     writeClientFromComment,
     persistState,
 } from './src/sheets.js';
-import { HASHTAGS_PER_RUN, MAX_PROFILES_PER_RUN, MAX_COLLAB_DEPTH, REQUEST_DELAY, MAX_DISCOVERY_PROFILES } from './src/config.js';
+import {
+    HASHTAGS_PER_RUN,
+    MAX_PROFILES_PER_RUN,
+    MAX_COLLAB_DEPTH,
+    REQUEST_DELAY,
+    MAX_DISCOVERY_PROFILES,
+    MAX_API_ERRORS_CONSECUTIVE,
+    MAX_NEW_PROFILE_THRESHOLD,
+    PHASE2_TIMEOUT_MIN,
+    PHASE3_TIMEOUT_MIN,
+    SESSION_CHECK_EVERY,
+    PROFILES_PER_HASHTAG,
+} from './src/config.js';
 
 // ============== STATE ==============
 const state = {
@@ -115,14 +127,28 @@ async function run() {
     console.log('[PHASE 2] PROFILE ENRICHMENT + CLASSIFICATION');
     console.log('-'.repeat(60));
 
-    const MAX_PHASE2 = 20;
-    const postsToProcess = newPosts.slice(0, MAX_PHASE2);
+    // Safety: unlimited unless config says otherwise
+    const phase2Limit = (MAX_PROFILES_PER_RUN !== null && MAX_PROFILES_PER_RUN !== undefined)
+        ? MAX_PROFILES_PER_RUN
+        : newPosts.length;
+    const phase2Posts = newPosts.slice(0, phase2Limit);
+    const phase2Start = Date.now();
+    let phase2Errors = 0;
 
     // Batch enrichment: 2 profiles concurrently, 3s between batches
-    const enrichedProfiles = await enrichProfilesBatch(postsToProcess, MAX_PHASE2, 2, 3000);
+    const enrichedProfiles = await enrichProfilesBatch(phase2Posts, phase2Limit, 2, 3000);
 
     for (const profile of enrichedProfiles) {
-        if (!profile) continue;
+        if (!profile) {
+            phase2Errors++;
+            state.errors++;
+            if (phase2Errors >= (MAX_API_ERRORS_CONSECUTIVE || 20)) {
+                console.log(`\n[STOP] Phase 2: ${phase2Errors} consecutive errors — stopping.`);
+                break;
+            }
+            continue;
+        }
+
         state.visited.add(profile.username);
 
         // Queue collabs + mentions for discovery
@@ -143,6 +169,13 @@ async function run() {
         state.found[profile.type].add(profile.username);
         state.newProfiles++;
         state.profilesScraped++;
+
+        // Safety: Phase 2 timeout
+        const elapsedMin = (Date.now() - phase2Start) / 60000;
+        if (elapsedMin >= (PHASE2_TIMEOUT_MIN || 60)) {
+            console.log(`\n[STOP] Phase 2: ${elapsedMin.toFixed(1)} min timeout reached.`);
+            break;
+        }
     }
 
     // 6. Phase 3: Discovery (collab + mention deep dive)
@@ -151,9 +184,26 @@ async function run() {
         console.log(`[PHASE 3] DISCOVERY (${state.discoveryQueue.length} queued)`);
         console.log('-'.repeat(60));
 
-        while (state.discoveryQueue.length > 0 && state.discoveryScraped < MAX_DISCOVERY_PROFILES) {
+        const phase3Start = Date.now();
+        const maxDisc = (MAX_DISCOVERY_PROFILES !== null && MAX_DISCOVERY_PROFILES !== undefined)
+            ? MAX_DISCOVERY_PROFILES
+            : 999999;
+        const maxApiErrors = MAX_API_ERRORS_CONSECUTIVE || 20;
+        let phase3Errors = 0;
+        let consecutiveSeen = 0;
+        let sessionChecked = 0;
+
+        while (state.discoveryQueue.length > 0 && state.discoveryScraped < maxDisc) {
             const item = state.discoveryQueue.shift();
-            if (state.visited.has(item.username) || item.depth > MAX_COLLAB_DEPTH) continue;
+            if (state.visited.has(item.username) || item.depth > (MAX_COLLAB_DEPTH || 2)) continue;
+
+            // Session health check
+            sessionChecked++;
+            if (sessionChecked % (SESSION_CHECK_EVERY || 50) === 0) {
+                console.log(`\n[CHECK] Verifying session cookies...`);
+                await refreshCookieStr();
+                console.log(`[CHECK] Session OK — ${state.discoveryScraped} discovery profiles processed`);
+            }
 
             state.visited.add(item.username);
             state.discoveryScraped++;
@@ -162,22 +212,52 @@ async function run() {
 
             const profile = await enrichProfile(item.username);
 
-            if (!profile) continue;
+            if (!profile) {
+                phase3Errors++;
+                state.errors++;
+                consecutiveSeen = 0;
+                if (phase3Errors >= maxApiErrors) {
+                    console.log(`\n[STOP] Phase 3: ${phase3Errors} consecutive API errors — stopping.`);
+                    break;
+                }
+                continue;
+            }
+
+            phase3Errors = 0;
 
             // Queue more
+            const newDiscoveries = [];
             const discovered = new Set([...(profile.collabs || []), ...(profile.mentions || [])]);
             for (const d of discovered) {
                 if (!state.visited.has(d) &&
                     !state.discoveryQueue.find(q => q.username === d) &&
-                    item.depth < MAX_COLLAB_DEPTH) {
+                    item.depth < (MAX_COLLAB_DEPTH || 2)) {
                     state.discoveryQueue.push({ username: d, depth: item.depth + 1, source: item.username });
+                    newDiscoveries.push(d);
                 }
+            }
+
+            if (newDiscoveries.length === 0) {
+                consecutiveSeen++;
+                if (consecutiveSeen >= (MAX_NEW_PROFILE_THRESHOLD || 10)) {
+                    console.log(`\n[STOP] Phase 3: ${consecutiveSeen} consecutive queue sweeps with no new profiles — stopping.`);
+                    break;
+                }
+            } else {
+                consecutiveSeen = 0;
             }
 
             // Write profile to correct sheet (competitor/vendor/client — enrichProfile classifies)
             await writeProfile(profile, state.found[profile.type]);
             state.found[profile.type].add(profile.username);
             state.newProfiles++;
+
+            // Safety: Phase 3 timeout
+            const elapsedMin = (Date.now() - phase3Start) / 60000;
+            if (elapsedMin >= (PHASE3_TIMEOUT_MIN || 90)) {
+                console.log(`\n[STOP] Phase 3: ${elapsedMin.toFixed(1)} min timeout reached.`);
+                break;
+            }
         }
 
         if (state.discoveryQueue.length > 0) {

@@ -40,14 +40,14 @@ No fresh scan needed (mutex prevents stale cache). No per-write persistence (one
 |------|--------|---------|
 | Hashtag discovery | Playwright → `/explore/search/keyword/?q=%23hashtag` + scroll + `img[alt]` username extraction | ✅ |
 | Username extraction | `img[alt="@username caption #hashtag..."]` inside `a[href="/p/"]` (React client-side rendering) | ✅ |
-| Post URLs | Extract `/p/SHORTCODE/` links (up to 50 per hashtag) | ✅ |
+| Post URLs | Extract `/p/SHORTCODE/` links (up to max scroll 50x) | ✅ |
 | Post enrichment | API → `/api/v1/media/{mediaId}/info/` | ✅ 100% |
 | Profile enrichment | Playwright → `/{username}/` (og:meta + body) | ✅ |
 | Profile post grid | Playwright → scroll → post URLs (up to 12 per profile) | ✅ |
 | **Comment extraction** | **GraphQL → `/graphql/query/?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5`** | ✅ |
 | Client discovery | Comment filtering + scoring (MUA excluded) | ✅ |
 | **Hashtag collection** | **Write new hashtags → VendorHashtags sheet** | ✅ |
-| **Scroll lazy-load** | **Hashtag search scrolls up to 10x to load ~50 posts** | ✅ |
+| **Scroll lazy-load** | **Hashtag search scrolls up to 50x (configurable)** | ✅ |
 | Sheets append | Mutex + in-memory nextRow + persist at end of run | ✅ |
 
 ## Classification System
@@ -75,6 +75,16 @@ No fresh scan needed (mutex prevents stale cache). No per-write persistence (one
 
 **Columns:** Location = specific city (e.g. "Semarang"), Region = hardcoded "JawaTengah"
 
+## Indonesian Filter
+
+Accounts are filtered via `isIndonesian()` in `classifier.js` before being saved. An account must show Indonesian indicators:
+
+1. **City match** — bio/hashtags/location contains Indonesian city name (100+ cities)
+2. **Word match** — bio contains: menikah, pernikahan, resepsi, +62, wa.me, whatsapp, islamic vocabulary
+3. **Phone format** — `+62` or `62XXXXXXXX`
+
+Foreign accounts (USA, India, Pakistan, etc.) are skipped with `[SKIP] @username — not Indonesian`.
+
 ## Google Sheets Structure
 
 **Spreadsheet:** `1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM`
@@ -90,23 +100,25 @@ No fresh scan needed (mutex prevents stale cache). No per-write persistence (one
 ## Pipeline Flow
 
 ```
-1x RUN (2 hashtags × ~50 posts with scroll)
+1x RUN (1 hashtag × unlimited scroll)
 
 ├─ PHASE 1: Hashtag Scrape + Post Enrichment
-│   → Playwright: scroll hashtag search page (lazy-load, up to 50 posts)
+│   → Playwright: scroll hashtag search page (lazy-load, up to 50 scrolls)
 │   → API: enrich each post (username, likes, comments, caption, hashtags, @mentions)
 │
-├─ PHASE 2: Profile Enrichment + Classification (20 profiles)
+├─ PHASE 2: Profile Enrichment + Classification (unlimited)
 │   → Playwright: extract bio, followers, following, posts, category, WA link
 │   → Playwright: scrape profile post grid (scroll) for collab discovery
 │   → Classify: competitor / vendor / client → save to correct sheet
 │   → Write new hashtags → VendorHashtags sheet
+│   → Safety: error threshold (20), phase timeout (60 min)
 │
-├─ PHASE 3: Discovery (collab + mention deep dive, up to 30 profiles)
+├─ PHASE 3: Discovery (collab + mention deep dive, depth=2)
 │   → Queue collabs + mentions from posts
-│   → Enrich discovered profiles (depth ≤ 4)
+│   → Enrich discovered profiles (depth ≤ 2)
 │   → Classify each → save to correct sheet
 │   → Write new hashtags → VendorHashtags sheet
+│   → Safety: error threshold (20), new-profile threshold (10), timeout (90 min), session check every 50
 │
 ├─ PHASE 4: Comment Extraction → Client Discovery
 │   → GraphQL: fetch ALL comments per post (with pagination)
@@ -128,25 +140,13 @@ instagram/
 ├── gcp-service-account.json # GCP service account for Sheets API
 ├── .env                     # Optional: IG_USERNAME + IG_PASSWORD for auto re-login
 └── src/
-    ├── config.js            # Limits, paths, sheet ID
+    ├── config.js            # Limits, paths, sheet ID, safety guards
     ├── scraper.js           # Hashtag scrape, post enrich, profile, GraphQL comments
     ├── enricher.js          # Profile enrichment (bio, collabs, mentions, classification)
     ├── comments.js          # Comment filtering + client scoring
-    ├── sheets.js           # Google Sheets read/write + append mechanism
-    └── classifier.js       # Account type classification
-```
-
-## Setup
-
-```bash
-cd research/instagram
-npm install
-```
-
-## Run
-
-```bash
-node index.js
+    ├── sheets.js            # Google Sheets read/write + append mechanism
+    ├── classifier.js        # Account type classification + Indonesian filter
+    └── instagram-auth.js    # Browser session management
 ```
 
 ## Configuration
@@ -155,11 +155,34 @@ Edit `src/config.js`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `HASHTAGS_PER_RUN` | 2 | Hashtags scanned per run |
-| `MAX_PROFILES_PER_RUN` | 20 | Max profiles in Phase 2 |
-| `MAX_DISCOVERY_PROFILES` | 30 | Max profiles in Phase 3 |
-| `MAX_COLLAB_DEPTH` | 4 | Discovery depth |
+| `HASHTAGS_PER_RUN` | 1 | Hashtags scanned per run |
+| `POSTS_PER_HASHTAG` | `null` | `null` = no limit (scroll until lazy-load exhausts) |
+| `PROFILES_PER_HASHTAG` | `null` | `null` = no limit (all usernames from hashtag) |
+| `MAX_PROFILES_PER_RUN` | `null` | `null` = no limit (all Phase 2 profiles) |
+| `MAX_DISCOVERY_PROFILES` | `null` | `null` = unlimited Phase 3 (guarded by safety) |
+| `MAX_COLLAB_DEPTH` | 2 | Discovery depth (Phase 3) |
+| `MAX_SCROLL_HASHTAG` | 50 | Max scrolls on hashtag search page |
 | `REQUEST_DELAY` | 5 | Seconds between API calls |
+| `NAVIGATE_DELAY` | 2000 | ms wait after page navigation |
+| `MAX_API_ERRORS_CONSECUTIVE` | 20 | Stop phase after N consecutive API errors |
+| `MAX_NEW_PROFILE_THRESHOLD` | 10 | Stop Phase 3 if N consecutive queue sweeps with no new profiles |
+| `PHASE2_TIMEOUT_MIN` | 60 | Phase 2 timeout in minutes |
+| `PHASE3_TIMEOUT_MIN` | 90 | Phase 3 timeout in minutes |
+| `SESSION_CHECK_EVERY` | 50 | Verify session cookies every N enrichments |
+
+**Null = unlimited:** Set any limit to `null` to disable that specific cap.
+
+## Safety Guards
+
+Pipeline automatically stops under these conditions:
+
+| Guard | Phase | Trigger |
+|-------|-------|---------|
+| `MAX_API_ERRORS_CONSECUTIVE` | 2 & 3 | 20 consecutive failed enrichments (rate limit / session expired) |
+| `MAX_NEW_PROFILE_THRESHOLD` | 3 | 10 consecutive queue sweeps with no new unique profiles |
+| `PHASE2_TIMEOUT_MIN` | 2 | 60 minutes elapsed |
+| `PHASE3_TIMEOUT_MIN` | 3 | 90 minutes elapsed |
+| `SESSION_CHECK_EVERY` | 3 | Every 50 profiles, cookies are verified; re-login if needed |
 
 ## Cookie Format
 
@@ -173,6 +196,7 @@ Get cookies: Browser DevTools → Application → Cookies → instagram.com
 - DNS errors (`EAI_AGAIN`) are transient — igFetch auto-retries once after 3s
 - Session cookies expire — re-login if 401/403 errors appear
 - Generic hashtags (`#fyp`, `#instagood`, `#reels`, etc.) are filtered automatically
+- Foreign accounts are automatically skipped by Indonesian filter
 
 ## Performance
 
@@ -184,7 +208,7 @@ Pipeline uses **parallel batch processing**:
 | Profile enrichment | 2 concurrent | 3s |
 | Comment extraction | 3 concurrent | 3s |
 
-Estimated run time: **10–20 minutes** (vs hours with sequential processing).
+Estimated run time: **30-120 minutes** (depending on hashtag popularity and Phase 3 discovery scope).
 
 ## Sheets Append Mechanism (Developer Notes)
 

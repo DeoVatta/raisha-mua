@@ -16,7 +16,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { REQUEST_DELAY, NAVIGATE_DELAY } from './config.js';
+import { REQUEST_DELAY, NAVIGATE_DELAY, MAX_SCROLL_HASHTAG, POSTS_PER_HASHTAG, PROFILES_PER_HASHTAG } from './config.js';
 import { ensureAuth } from './instagram-auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -659,7 +659,7 @@ function buildFallbackProfile(username) {
  * Scrape hashtag page via _sharedData JSON — fastest method, no per-post navigation.
  * Instagram embeds hashtag posts in window._sharedData on the search page.
  */
-async function scrapeHashtag(hashtag, maxPosts = 50) {
+async function scrapeHashtag(hashtag, maxPosts = 200) {
     if (!_page) await initBrowser();
 
     console.log(`[HASHTAG] #${hashtag}`);
@@ -678,14 +678,16 @@ async function scrapeHashtag(hashtag, maxPosts = 50) {
     // Scroll to load more posts (lazy loading)
     let prevCount = 0;
     let scrollCount = 0;
-    const maxScrolls = 10;
+    const maxScrolls = MAX_SCROLL_HASHTAG || 50;
+    // post limit: config value, or null = unlimited (use very large number)
+    const postLimit = (POSTS_PER_HASHTAG !== null && POSTS_PER_HASHTAG !== undefined) ? POSTS_PER_HASHTAG : 999999;
 
     while (scrollCount < maxScrolls) {
         const urls = await _page.$$eval('a[href*="/p/"]',
             els => [...new Set(els.map(e => e.href.split('?')[0]))]);
         const currentCount = urls.length;
 
-        if (currentCount >= maxPosts) break;
+        if (currentCount >= postLimit) break;
         if (currentCount === prevCount && scrollCount > 3) break;
 
         prevCount = currentCount;
@@ -771,15 +773,21 @@ async function scrapeHashtags(hashtags) {
 
     const allPosts = [];
     const seen = new Set();
+    const profileLimit = (PROFILES_PER_HASHTAG !== null && PROFILES_PER_HASHTAG !== undefined)
+        ? PROFILES_PER_HASHTAG
+        : 999999;
 
     for (const hashtag of hashtags) {
         const posts = await scrapeHashtag(hashtag);
+        let count = 0;
         for (const p of posts) {
             // Dedup by shortcode (most reliable), fallback to username
             const key = p.shortcode || p.username;
             if (!key || seen.has(key)) continue;
             seen.add(key);
             allPosts.push({ ...p, sourceHashtag: hashtag });
+            count++;
+            if (count >= profileLimit) break;
         }
     }
 
