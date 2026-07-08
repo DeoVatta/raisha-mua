@@ -807,6 +807,7 @@ export {
     scrapeHashtag,
     scrapeHashtags,
     decodeShortcode,
+    fetchAllPostCommentsGraphQL,
     fetchPostCommentsGraphQL,
     fetchAllPostCommentsGraphQL,
 };

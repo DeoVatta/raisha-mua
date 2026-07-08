@@ -421,25 +421,18 @@ async function writeProfile(profile, existingUsernames) {
             ]];
             endCol = 'Q';
         } else {
+            // Client sheet: A=No, B=Profile URL, C=Username, D=Via, E=Source,
+            //                F=Comment Text, G=Location, H=Date Comment
             values = [[
                 sheetNo,
                 profile.profileUrl || `https://instagram.com/${username}/`,
                 `@${username}`,
                 profile.sourceHashtag || '',
-                profile.bio || '',
-                profile.followers || 0,
-                profile.following || '',
-                'Pending',
-                hashtagsStr,
-                engDisplay,
-                profile.avgLikes || profile.likes || 0,
-                profile.avgComments || profile.comments || 0,
-                collabsStr,
+                (profile.bio || '').slice(0, 200),
+                profile.nativeLocation || '',
                 today,
-                profile.location || '',
-                ''
             ]];
-            endCol = 'Q';
+            endCol = 'G';
         }
 
         await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
