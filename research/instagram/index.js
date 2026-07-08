@@ -32,8 +32,7 @@ import {
     initSheets,
     readHashtags,
     readVisitedProfiles,
-    readLastIndex,
-    updateLastIndex,
+    findNextHashtagIndex,
     writeProfile,
     writeClientFromComment,
     writeNewHashtag,
@@ -74,7 +73,8 @@ async function run() {
 
     await clearExecutingMarkers();  // uses _seenHashtags populated above
     const visited = await readVisitedProfiles();
-    let lastIndex = await readLastIndex();
+    // Find next hashtag to process: scan G column for last "Executed" → start after it
+    const hashtagIdx = await findNextHashtagIndex(approvedHashtags);
 
     // Stats
     let stats = { competitors: 0, vendors: 0, clients: 0, hashtags: 0, errors: 0 };
@@ -83,9 +83,8 @@ async function run() {
     let postCount = 0; // for every-20-post re-login trigger
 
     // ================================================================
-    // Select one hashtag per run
+    // Select one hashtag per run (scanned from G column in VendorHashtags sheet)
     // ================================================================
-    const hashtagIdx = lastIndex % approvedHashtags.length;
     const hashtag = approvedHashtags[hashtagIdx];
     _currentHashtag = hashtag; // track for SIGINT
 
@@ -105,10 +104,8 @@ async function run() {
 
     if (posts.length === 0) {
         console.log('[PHASE 1] No posts found. Skipping hashtag.');
-        // Mark done FIRST, then advance index — so crash between these two
-        // still leaves 'Executing' marker and a re-run picks the same hashtag
+        // Mark done in G column — next run will auto-scan and skip this hashtag
         await markHashtagDone(hashtag, true);
-        await updateLastIndex((lastIndex + 1) % approvedHashtags.length);
         await closeBrowser();
         await persistState();
         printSummary(stats, hashtag, hashtagIdx, hashtagIdx + 1, approvedHashtags.length);
@@ -264,25 +261,19 @@ async function run() {
         const pNum = i + 1;
         console.log(`\n[COMMENT ${pNum}/${last20Posts.length}] ${shortcode}`);
 
-        // Get post data
-        const postData = await enrichPost(postUrl);
-        if (!postData || !postData.username) {
-            console.log(`  → No post data`);
-            continue;
-        }
+        // Get post author from Phase 1 data (already extracted from img[alt])
+        const postAuthor = (post.username || '').toLowerCase();
 
-        const postAuthor = postData.username.toLowerCase();
-
-        // Fetch all comments via GraphQL
+        // Fetch all comments via GraphQL — ALWAYS try (GraphQL works even when Mobile API is blocked)
         const allComments = await fetchAllPostCommentsGraphQL(shortcode, 100);
         if (!allComments || allComments.length === 0) {
             console.log(`  → 0 comments`);
             continue;
         }
-        console.log(`  → ${allComments.length} comments`);
+        console.log(`  → ${allComments.length} comments${postAuthor ? ` from @${postAuthor}` : ' (author unknown — will not filter)'}`);
 
-        // Filter to potential clients
-        const clients = filterClients(allComments, postAuthor);
+        // Filter to potential clients — only filter by author if we know it
+        const clients = filterClients(allComments, postAuthor || null);
         if (clients.length === 0) {
             console.log(`  → 0 filtered clients`);
             continue;
@@ -393,12 +384,12 @@ async function run() {
     }
 
     // ================================================================
-    // PHASE 11 — Mark done FIRST, then advance index
-    // Crash between these two = 'Executing' marker stays, re-run picks same hashtag
+    // PHASE 11 — Mark done (G column "Executed YYYY-MM-DD HH:MM")
+    // Next run auto-finds this via findNextHashtagIndex() scan
     // ================================================================
     await markHashtagDone(hashtag, true);
-    const nextIndex = (lastIndex + 1) % approvedHashtags.length;
-    await updateLastIndex(nextIndex);
+
+    const nextIdx = (hashtagIdx + 1) % approvedHashtags.length;
 
     // Cleanup
     await closeBrowser();
@@ -407,7 +398,7 @@ async function run() {
     // ================================================================
     // SUMMARY
     // ================================================================
-    printSummary(stats, hashtag, hashtagIdx, nextIndex, approvedHashtags.length);
+    printSummary(stats, hashtag, hashtagIdx, nextIdx, approvedHashtags.length);
 }
 
 // ============== SUMMARY ==============

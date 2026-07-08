@@ -103,10 +103,11 @@ function scoreComment(commentText, authorUsername) {
  * Filter out non-clients from comment list.
  */
 function filterClients(comments, postAuthor) {
+    const authorLower = (postAuthor || '').toLowerCase();
     return comments
         .filter(c => {
-            const username = c.username.toLowerCase();
-            if (username === postAuthor.toLowerCase()) return false;
+            const username = (c.username || '').toLowerCase();
+            if (username && username === authorLower) return false;
             if (!c.text || c.text.trim().length < 2) return false;
             if (c.text.match(/^@?\w+$/) && c.text.length < 5) return false;
             if (username.match(/(mua|makeup|rias|hair|bridal|mua_|_\.mua|\.mua$)/i)) return false;

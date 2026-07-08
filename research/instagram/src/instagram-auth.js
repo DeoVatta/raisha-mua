@@ -251,33 +251,13 @@ export async function ensureAuth() {
             console.log('[AUTH] Session valid — using existing cookies');
             return existingCookies;
         }
+        console.log('[AUTH] Session expired — will try to merge with browser cookies');
+        // Return existing cookies so caller can merge with fresh browser cookies
+        return existingCookies;
     }
 
-    // Need fresh login
-    if (!IG_USERNAME || !IG_PASSWORD) {
-        console.log('\n[AUTH] No valid cookies and no credentials provided.');
-        console.log('[AUTH] Set IG_USERNAME and IG_PASSWORD to enable auto-login:');
-        console.log('  Option 1: export IG_USERNAME=xxx IG_PASSWORD=xxx');
-        console.log('  Option 2: Add to .env file in instagram/ folder:');
-        console.log('    IG_USERNAME=your_username');
-        console.log('    IG_PASSWORD=your_password');
-        console.log('\n[AUTH] Or manually refresh cookies in browser and update instagram-cookies.json');
-        process.exit(1);
-    }
-
-    const newCookies = await loginInstagram(IG_USERNAME, IG_PASSWORD);
-    if (!newCookies || newCookies.length === 0) {
-        console.log('[AUTH] Could not obtain new cookies — check credentials');
-        process.exit(1);
-    }
-
-    // Only save if login actually succeeded with a sessionid
-    const loginHasSessionId = newCookies.some(c => c.name === 'sessionid' && c.value);
-    if (loginHasSessionId) {
-        await saveCookies(newCookies);
-        console.log('[AUTH] New cookies saved — ready to run');
-    } else {
-        console.log('[AUTH] Login did not return sessionid — cookies NOT saved');
-    }
-    return newCookies;
+    // No sessionid found
+    console.log('[AUTH] No sessionid in cookies — cannot authenticate');
+    console.log('[AUTH] Update instagram-cookies.json with valid session cookies');
+    process.exit(1);
 }

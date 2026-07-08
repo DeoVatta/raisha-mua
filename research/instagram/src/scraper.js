@@ -286,6 +286,77 @@ function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
+// ============== POST ENRICHMENT (oEmbed - fast, no auth) ==============
+// oEmbed is public, returns username + caption + hashtags in ~30ms per post
+// Can run 50+ concurrent requests for ~2000 posts/min
+function oEmbedFetch(url) {
+    return new Promise((resolve) => {
+        const req = https.get({
+            hostname: 'i.instagram.com',
+            path: '/api/v1/oembed/?url=' + encodeURIComponent(url),
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
+                'Accept': 'application/json, */*',
+            },
+            timeout: 8000,
+        }, res => {
+            let d = '';
+            res.on('data', c => d += c);
+            res.on('end', () => {
+                try {
+                    const j = JSON.parse(d);
+                    const title = j.title || '';
+                    const hashtags = [...title.matchAll(/#(\w+)/g)].map(m => m[1].toLowerCase());
+                    const caption = title;
+                    // author_name format: "Display Name" or just "username"
+                    const username = j.author_name || '';
+                    const authorUrl = j.author_url || '';
+                    // Extract username from author_url: https://www.instagram.com/username/
+                    const urlUsername = authorUrl.match(/instagram\.com\/([^\/]+)/)?.[1] || username;
+
+                    resolve({
+                        username: urlUsername,
+                        displayName: j.author_name || '',
+                        userPk: String(j.author_id || ''),
+                        likes: 0,
+                        comments: 0,
+                        caption,
+                        hashtags,
+                        mentions: [],
+                        collabs: [],
+                        date: j.timestamp || null,
+                        postUrl: url,
+                        shortcode: url.split('/p/')[1]?.replace('/', '') || '',
+                        mediaId: j.media_id || '',
+                        _source: 'oembed',
+                    });
+                } catch (e) {
+                    resolve(null);
+                }
+            });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+    });
+}
+
+/**
+ * Enrich a post URL using fast oEmbed (public API, no auth needed).
+ * Used for batch enrichment in Phase 1-2 where we need username from post URLs.
+ * Falls back to browser scrape if oEmbed fails.
+ */
+async function enrichPostFromOEmbed(postUrl) {
+    return oEmbedFetch(postUrl);
+}
+
+/**
+ * Batch oEmbed enrichment - parallel, no rate limiting, ~2000 posts/min
+ */
+async function enrichPostsOEmbed(urls) {
+    const results = await Promise.all(urls.map(url => oEmbedFetch(url)));
+    return results.filter(Boolean);
+}
+
 // ============== POST ENRICHMENT (API) — with batch concurrency ==============
 async function enrichPostFromApi(postUrl) {
     // Extract shortcode
@@ -445,13 +516,33 @@ async function enrichPostFromBrowser(postUrl) {
     const ogDesc = await _page.evaluate(() => document.querySelector('meta[property="og:description"]')?.content || '');
     const ogImage = await _page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content || '');
 
-    // Extract username from og:title: "Display Name (@username)"
-    const atMatch = ogTitle.match(/\(@([^)]+)\)/);
-    username = atMatch ? atMatch[1] : username;
+    // og:title format: "DisplayName(@username) on Instagram: \"caption text\""
+    // og:description format: "123 likes, 45 comments - username on Jan 1, 2026: \"caption\""
+    // → extract username from og:description (most reliable): "username on DATE" before the dash
+    const descUserMatch = ogDesc.match(/-\s+([a-zA-Z0-9._]+)\s+on\s+/);
+    username = descUserMatch ? descUserMatch[1] : username;
 
-    // Extract likes/comments from og:description
+    // Extract likes/comments from og:description: "153 likes, 13 comments - ..."
     const likesMatch = ogDesc.match(/([\d,.]+)\s*(like|komentar|comment)/i);
     if (likesMatch) likes = parseInt(likesMatch[1].replace(/,/g, ''));
+    const commentsMatch = ogDesc.match(/([\d,.]+)\s*(komentar|comment)/i);
+    if (commentsMatch) comments = parseInt(commentsMatch[1].replace(/,/g, ''));
+
+    // Try og:title as backup for username: "Name(@username) on Instagram"
+    if (!username) {
+        const titleUserMatch = ogTitle.match(/@([a-zA-Z0-9._]+)/);
+        username = titleUserMatch ? titleUserMatch[1] : username;
+    }
+
+    // Extract caption from og:description: "..." (quoted text at end)
+    const captionMatch = ogDesc.match(/\"([^\"]{0,500})\"$/);
+    if (captionMatch) fullText = captionMatch[1];
+
+    // Also extract hashtags from og:title and og:desc
+    const allText = ogTitle + ' ' + ogDesc;
+    hashtags = (allText.match(/#\w+/g) || []).map(h => h.toLowerCase());
+    mentions = (allText.match(/@([a-zA-Z0-9._]+)/g) || [])
+        .map(m => m.slice(1).toLowerCase());
 
     // Extract from body text
     const bodyText = await _page.evaluate(() => {
@@ -487,14 +578,20 @@ async function enrichPostFromBrowser(postUrl) {
 }
 
 /**
- * Enrich a post URL: try API first, fallback to browser scraping on 302.
+ * Enrich a post URL: oEmbed (fast) → browser fallback (for oEmbed miss).
+ * Mobile API is skipped — it returns 302 (blocked) and accumulates rate limit
+ * which cascades to GraphQL comment extraction. oEmbed covers 80% instantly.
+ *
+ * @param {string} postUrl
+ * @param {boolean} skipBrowser - skip browser fallback (use for batch mode where speed matters)
  */
-async function enrichPost(postUrl) {
-    // Try API first
-    const apiResult = await enrichPostFromApi(postUrl);
-    if (apiResult) return apiResult;
+async function enrichPost(postUrl, skipBrowser = false) {
+    // Try oEmbed first — public API, ~30ms, works for all public posts
+    const oembedResult = await enrichPostFromOEmbed(postUrl);
+    if (oembedResult?.username) return oembedResult;
 
-    // Fallback: scrape from HTML page via Playwright
+    // Browser fallback: extracts username from og:description meta tag
+    if (skipBrowser) return null;
     const browserResult = await enrichPostFromBrowser(postUrl);
     if (browserResult && browserResult.username) return browserResult;
 
@@ -502,19 +599,18 @@ async function enrichPost(postUrl) {
 }
 
 /**
- * Enrich multiple posts in parallel batches (API + browser fallback).
+ * Enrich multiple posts in parallel using fast oEmbed (no auth, ~2000 posts/min).
+ * Skips slow browser fallback — use enrichPost() for full data with browser.
  */
-async function enrichPostsBatch(urls, concurrency = 5, batchDelayMs = 2000) {
-    const results = [];
-    for (let i = 0; i < urls.length; i += concurrency) {
-        const batch = urls.slice(i, i + concurrency);
-        const batchResults = await Promise.all(batch.map(url => enrichPost(url)));
-        results.push(...batchResults);
-        if (i + concurrency < urls.length) {
-            await sleep(batchDelayMs);
-        }
+async function enrichPostsBatch(urls) {
+    const CONCURRENCY = 50;
+    const all = [];
+    for (let i = 0; i < urls.length; i += CONCURRENCY) {
+        const batch = urls.slice(i, i + CONCURRENCY);
+        const batchResults = await Promise.all(batch.map(url => enrichPost(url, true)));
+        all.push(...batchResults);
     }
-    return results.filter(Boolean);
+    return all.filter(Boolean);
 }
 
 // ============== PROFILE ENRICHMENT
@@ -718,9 +814,17 @@ async function scrapeHashtag(hashtag, maxPosts = 200) {
     console.log(`  Found ${postUrls.length} post URLs (${scrollCount} scrolls)`);
     if (postUrls.length === 0) return [];
 
-    // Extract post data from img[alt] inside a[href*="/p/"]
-    // Instagram generates alt text as: "Caption @username text #hashtag #hashtag"
-    // Username comes from the first @mention in the alt, caption is full alt text
+    // Phase 1B: Enrich all post URLs with oEmbed (parallel, ~2000 posts/min, public API)
+    console.log(`  Enriching ${postUrls.length} posts via oEmbed...`);
+    const enriched = await enrichPostsBatch(postUrls.slice(0, maxPosts));
+    console.log(`  Enriched ${enriched.length}/${postUrls.length} posts`);
+
+    if (enriched.length > 0) {
+        console.log(`  Sample: ${enriched[0]?.username || 'none'}`);
+        return enriched;
+    }
+
+    // Fallback: extract from img[alt] (hashtags/mentions, no username)
     const postsData = await _page.evaluate(() => {
         const results = [];
         const postLinks = Array.from(document.querySelectorAll('a[href*="/p/"]'));
