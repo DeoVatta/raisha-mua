@@ -13,6 +13,7 @@ import { GoogleAuth } from 'google-auth-library';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { isIndonesian } from './classifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHEETS_ID = '1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM';
@@ -308,6 +309,12 @@ async function writeProfile(profile, existingUsernames) {
         lockState.release = () => { _locks[sheetName] = Promise.resolve(); };
     });
     try {
+        // Only save accounts with Indonesian indicators
+        if (!isIndonesian(profile.bio || '', [...(profile.hashtags || [])], profile.nativeLocation || '')) {
+            console.log(`  [SKIP] @${username} — not Indonesian`);
+            return;
+        }
+
         const rowNum = nextRow[sheetName];          // get current row
         const sheetNo = rowNum - 2;                  // No column = always sequential
         const today = new Date().toISOString().split('T')[0];
@@ -326,7 +333,7 @@ async function writeProfile(profile, existingUsernames) {
                 profile.profileUrl || `https://instagram.com/${username}/`,
                 `@${username}`,
                 profile.location || '',
-                'JawaTengah',
+                profile.location ? 'JawaTengah' : '',
                 profile.followers || 0,
                 profile.following || 0,
                 profile.posts || 0,
@@ -347,7 +354,7 @@ async function writeProfile(profile, existingUsernames) {
                 `@${username}`,
                 profile.category || 'Wedding Services',
                 profile.location || '',
-                'JawaTengah',
+                profile.location ? 'JawaTengah' : '',
                 profile.followers || 0,
                 profile.following || 0,
                 profile.posts || 0,
@@ -411,7 +418,6 @@ async function writeClientFromComment(clientData, existingUsernames) {
         const rowNum = nextRow.Client;
         const sheetNo = rowNum - 2;
         const today = new Date().toISOString().split('T')[0];
-
         const via = clientData.via || 'comment';
         const source = clientData.source || '';
         const commentText = (clientData.commentText || clientData.text || '').slice(0, 200);

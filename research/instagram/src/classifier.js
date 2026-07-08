@@ -59,6 +59,80 @@ export const VENDOR_HASHTAGS = [
     '#salon', '#weddingnails',
 ];
 
+// ============== INDONESIA DETECTION ==============
+// All major Indonesian cities and regions
+export const INDONESIAN_CITIES = [
+    // Jawa
+    'jakarta', 'jkt', 'jkart', 'tangerang', 'tangsel', 'bekasi', 'bogor', 'depok',
+    'bandung', 'bdg', 'cirebon', 'cirebon', 'karawang', 'purwakarta', 'sukabumi',
+    'subang', 'indramayu', 'majalengka', 'sumedang', 'garut', 'cianjur', 'bandung barat',
+    'semarang', 'smg', 'solo', 'surakarta', 'yogyakarta', 'jogja', 'jogjakarta', 'yogya',
+    'salatiga', 'slg', 'klaten', 'klt', 'wonogiri', 'sragen', 'boyolali', 'magelang',
+    'pati', 'kudus', 'rembang', 'blora', 'grobogan', 'karanganyar', 'cepu',
+    'ungaran', 'ung', 'pekalongan', 'pkl', 'tegal', 'tgl', 'brebes', 'pemalang',
+    'batang', 'kendal', 'demak', 'jepara', 'pati', 'jombang', 'mojokerto', 'surabaya', 'sby',
+    'sidoarjo', 'gresik', 'lamongan', 'tuban', 'bojonegoro', 'nganjuk', 'madiun',
+    'ponorogo', 'ngawi', 'magetan', 'caruban', 'trenggalek', 'tulungagung', 'blitar',
+    'malang', 'mlg', 'pasuruan', 'probolinggo', 'lumajang', 'jember', 'banyuwangi',
+    'situbondo', 'bondowoso', 'besuki', 'ponorogo', 'kediri', 'kediri',
+    'bali', 'denpasar', 'bali', 'kuta', 'ubud', 'sanur', 'nusa dua', 'nusa penida',
+    'lombok', 'mataram', 'sumbawa',
+    // Sumatera
+    'medan', 'mdn', 'pekanbaru', 'pkp', 'padang', 'palembang', 'plm', 'palembang',
+    'pekanbaru', 'riau', 'jambi', 'bengkulu', 'lampung', 'bandar lampung', 'lampung',
+    'banjarmasin', 'bjb', 'kalimantan', 'samarinda', 'balikpapan', 'pontianak',
+    // Sulawesi
+    'makassar', 'mks', 'ujung pandang', 'parepare', 'palopo', 'manado', 'gorontalo',
+    'kendari', 'palu', 'bau-bau',
+    // Lainnya
+    'mataram', 'kupang', 'ambon', 'ternate', 'sorong', 'jayapura', 'papua',
+    'jawa', 'jatim', 'jateng', 'jabar', 'dki', 'indonesia', 'riau', 'ri',
+];
+
+// Indonesian words that strongly indicate account is Indonesian
+export const INDONESIAN_WORDS = [
+    'menikah', 'pernikahan', 'resepsi', 'undangan', 'nikah', 'akad',
+    'suami', 'istri', 'mempelai', 'pengantin', 'rias', 'rias pengantin',
+    '+62', 'wa.me', 'whatsapp', 'whats app', 'line:', 'telegram:',
+    'allah', 'jannah', 'khotbah', 'pengajian', 'khotmil', 'salat', 'dakwah',
+    'mualaf', 'muslimah', 'muslim', 'islami', 'hijab', 'jilbab',
+    'surabaya', 'semarang', 'jakarta', 'bandung', 'yogyakarta', 'solo',
+    'jogja', 'bali', 'malang', 'medan', 'pontianak', 'makassar',
+    'tangerang', 'bekasi', 'bogor', 'depok', 'cilacap', 'purwokerto',
+    'kudus', 'pati', 'karanganyar', 'ungaran', 'salatiga', 'klaten',
+    'sragen', 'wonogiri', 'boyolali', 'grobogan', 'kudus', 'pati',
+    'cepu', 'tegal', 'pekalongan', 'brebes', 'garut', 'cirebon',
+];
+
+function wordBoundaryMatch(text, keyword) {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    return regex.test(text);
+}
+
+/**
+ * Check if an account is likely Indonesian.
+ * Returns true if bio/hashtags/nativeLocation contain Indonesian indicators.
+ */
+export function isIndonesian(bio = '', hashtags = [], nativeLocation = '') {
+    const text = ((bio || '') + ' ' + hashtags.join(' ') + ' ' + (nativeLocation || '')).toLowerCase();
+
+    // Check for Indonesian cities
+    for (const city of INDONESIAN_CITIES) {
+        if (wordBoundaryMatch(text, city)) return true;
+    }
+
+    // Check for Indonesian words
+    for (const word of INDONESIAN_WORDS) {
+        if (text.includes(word)) return true;
+    }
+
+    // Check for +62 phone format
+    if (/\+62|62\d{8,}/.test(text)) return true;
+
+    return false;
+}
+
 // Semua kota, kabupaten & daerah di Jawa Tengah
 export const JAWA_TENGAH_CITIES = [
     // Kota
@@ -147,12 +221,6 @@ function capitalizeFirst(str) {
 }
 
 // ============== CLASSIFIER ==============
-function wordBoundaryMatch(text, keyword) {
-    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-    return regex.test(text);
-}
-
 export function classifyAccount(bio, displayName = '') {
     const text = ((bio || '') + ' ' + (displayName || '')).toLowerCase();
 
