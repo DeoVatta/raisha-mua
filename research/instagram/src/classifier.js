@@ -96,7 +96,6 @@ export const INDONESIAN_WORDS = [
     'suami', 'istri', 'mempelai', 'pengantin',
     '+62', 'wa.me', 'whatsapp', 'whats app', 'line:', 'telegram:',
     'allah', 'jannah', 'khotbah', 'pengajian', 'khotmil', 'dakwah',
-    'mualaf', 'islami', 'hijab', 'jilbab',
 ];
 
 function wordBoundaryMatch(text, keyword) {
