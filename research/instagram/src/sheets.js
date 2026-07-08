@@ -159,7 +159,7 @@ async function readRange(range) {
 }
 
 async function readHashtags() {
-    const rows = await readRange('VendorHashtags!A1:G700');
+    const rows = await readRange('VendorHashtags!A1:G2000');
     const hashtags = [];
     let maxRow = 2;
     for (let i = 2; i < rows.length; i++) {
@@ -199,7 +199,7 @@ async function loadSeenHashtags() {
 }
 
 async function clearExecutingMarkers() {
-    const rows = await readRange('VendorHashtags!A1:G700');
+    const rows = await readRange('VendorHashtags!A1:G2000');
     const updates = [];
     for (let i = 2; i < rows.length; i++) {
         if (rows[i][6] === 'Executing') {
@@ -251,15 +251,33 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (!sheetsClient || !hashtag) return;
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
-    if (_seenHashtags[clean]) return;         // already in sheet (key = row number)
+    if (_seenHashtags[clean]) return;         // already in sheet
     if (_genericHashtags.has(clean)) return;
 
-    const writeRow = nextRow.VendorHashtags;
-    const today = new Date().toISOString().split('T')[0];
-    await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
-    nextRow.VendorHashtags = writeRow + 1;
-    _seenHashtags[clean] = writeRow;          // register: key=hashtag, value=row
-    console.log(`  [NEW HASHTAG] #${clean} → row ${writeRow}`);
+    // Mutex: wait for any in-flight write to finish before grabbing row
+    await acquireLock('VendorHashtags').prev;
+    const lockState = {};
+    _locks.VendorHashtags = _locks.VendorHashtags.then(() => {
+        lockState.release = () => { _locks.VendorHashtags = Promise.resolve(); };
+    });
+    try {
+        // Re-check after acquiring lock (another call may have written it)
+        if (_seenHashtags[clean]) return;
+
+        const writeRow = nextRow.VendorHashtags;
+        const today = new Date().toISOString().split('T')[0];
+        const ok = await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
+
+        if (ok) {
+            nextRow.VendorHashtags = writeRow + 1;
+            _seenHashtags[clean] = writeRow;
+            console.log(`  [NEW HASHTAG] #${clean} → row ${writeRow}`);
+        } else {
+            console.log(`  [SKIP HASHTAG] #${clean} write failed, will retry next run`);
+        }
+    } finally {
+        if (lockState.release) lockState.release();
+    }
 }
 
 async function readVisitedProfiles() {
@@ -307,15 +325,17 @@ async function readLastIndex() {
 async function writeRange(range, values) {
     if (!sheetsClient) {
         console.log(`[SHEETS DRY] ${range}:`, JSON.stringify(values).slice(0, 150));
-        return;
+        return false;
     }
     try {
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID, range,
             valueInputOption: 'RAW', resource: { values }
         });
+        return true;
     } catch (e) {
-        console.log(`[SHEETS] Write error: ${e.message}`);
+        console.log(`[SHEETS] Write error on ${range}: ${e.message}`);
+        return false;
     }
 }
 
@@ -419,7 +439,7 @@ async function writeProfile(profile, existingUsernames) {
                 collabsStr,
                 today
             ]];
-            endCol = 'Q';
+            endCol = 'P';
         } else {
             // Client sheet: A=No, B=Profile URL, C=Username, D=Via, E=Source,
             //                F=Comment Text, G=Location, H=Date Comment

@@ -23,16 +23,11 @@ import {
     closeBrowser,
     refreshCookieStr,
     enrichPost,
-    enrichPostFromApi,
     scrapeHashtag,
     fetchAllPostCommentsGraphQL,
 } from './src/scraper.js';
 import { enrichProfile } from './src/enricher.js';
-import {
-    getCommentMetrics,
-    filterClients,
-    extractClientsFromPosts,
-} from './src/comments.js';
+import { filterClients } from './src/comments.js';
 import {
     initSheets,
     readHashtags,
@@ -50,14 +45,9 @@ import {
 import { isIndonesian } from './src/classifier.js';
 import {
     MAX_COLLAB_DEPTH,
-    REQUEST_DELAY,
     MAX_API_ERRORS_CONSECUTIVE,
     PHASE2_TIMEOUT_MIN,
 } from './src/config.js';
-
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-}
 
 // ============== MAIN ==============
 async function run() {
@@ -210,7 +200,7 @@ async function run() {
         const typeKey = profile.type || 'client';
         const isClient = typeKey === 'client';
 
-        await writeProfile(profile, new Set());
+        await writeProfile(profile, visited);
         visited.add(enrichedUsername);
 
         if (typeKey === 'competitor') stats.competitors++;
@@ -375,7 +365,7 @@ async function run() {
         const typeKey = profile.type || 'client';
         const isClient = typeKey === 'client';
 
-        await writeProfile(profile, new Set());
+        await writeProfile(profile, visited);
 
         if (typeKey === 'competitor') stats.competitors++;
         else if (typeKey === 'vendor') stats.vendors++;

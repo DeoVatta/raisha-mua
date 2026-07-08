@@ -14,7 +14,6 @@ import {
 } from './scraper.js';
 import { classifyAccount, classifyFromHashtags, detectCategory, detectLocation, calculateEngagement } from './classifier.js';
 import { REQUEST_DELAY, PROFILES_PER_HASHTAG } from './config.js';
-import { writeNewHashtag } from './sheets.js';
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
@@ -135,11 +134,6 @@ async function enrichProfile(username, postData = null) {
         console.log(`  [TAGS] Hashtags: ${[...profile.hashtags].slice(0, 5).join(' ')}`);
         console.log(`  [DISC] Mentions: ${[...profile.mentions].slice(0, 3).join(', ') || 'none'}`);
         console.log(`  [DISC] Collabs: ${[...profile.collabs].slice(0, 3).join(', ') || 'none'}`);
-
-        // Write new hashtags to VendorHashtags sheet
-        for (const tag of profile.hashtags) {
-            await writeNewHashtag(tag, username);
-        }
 
         return profile;
 
