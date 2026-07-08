@@ -36,6 +36,9 @@ import {
     writeProfile,
     writeClientFromComment,
     persistState,
+    clearExecutingMarkers,
+    markHashtagExecuting,
+    markHashtagDone,
 } from './src/sheets.js';
 import {
     HASHTAGS_PER_RUN,
@@ -61,6 +64,7 @@ const state = {
     newProfiles: 0,
     errors: 0,
 };
+let _selectedHashtags = []; // for SIGINT/fatal error handlers to mark as failed
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
@@ -80,11 +84,14 @@ async function run() {
 
     // 2. Load state from sheets
     console.log('\n[2] Loading state...');
-    const approvedHashtags = await readHashtags();
+    const approvedHashtags = await readHashtags(); // also preloads _seenHashtags + sets nextRow
     if (approvedHashtags.length === 0) {
         console.log('[ERROR] No approved hashtags in VendorHashtags sheet');
         process.exit(1);
     }
+
+    // Clear any stale "Executing" markers from previous run
+    await clearExecutingMarkers();
 
     state.visited = await readVisitedProfiles();
     let lastIndex = await readLastIndex();
@@ -95,7 +102,13 @@ async function run() {
         const idx = (lastIndex + i) % approvedHashtags.length;
         selected.push(approvedHashtags[idx]);
     }
+    _selectedHashtags = selected; // for SIGINT/fatal handlers
     const nextIndex = (lastIndex + HASHTAGS_PER_RUN) % approvedHashtags.length;
+
+    // 3b. Mark selected hashtags as "Executing" in G column
+    for (const tag of selected) {
+        await markHashtagExecuting(tag);
+    }
 
     console.log(`\n[3] Hashtags: ${selected.join(', ')}`);
     console.log(`    Index: ${lastIndex} → ${nextIndex}\n`);
@@ -296,7 +309,12 @@ async function run() {
     // 8. Update hashtag index
     await updateLastIndex(nextIndex);
 
-    // 8. Cleanup
+    // 8b. Mark selected hashtags as done
+    for (const tag of selected) {
+        await markHashtagDone(tag, true);
+    }
+
+    // 9. Cleanup
     await closeBrowser();
 
     // 9. Persist row state to Setting sheet, then summary
@@ -320,12 +338,18 @@ async function run() {
 // ============== HANDLE ERRORS ==============
 process.on('SIGINT', async () => {
     console.log('\n[ABORT] Closing...');
+    for (const tag of _selectedHashtags) {
+        await markHashtagDone(tag, false).catch(() => {});
+    }
     await closeBrowser();
     process.exit(1);
 });
 
 run().catch(async (e) => {
     console.error('[FATAL]', e.message);
+    for (const tag of _selectedHashtags) {
+        await markHashtagDone(tag, false).catch(() => {});
+    }
     await closeBrowser();
     process.exit(1);
 });

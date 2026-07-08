@@ -30,7 +30,7 @@ const VENDOR_HEADER = [
     'Hashtags', 'Bio', 'Status', 'Collabs', 'Date'
 ];
 const HASHTAG_HEADER = [
-    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status'
+    '', 'Hashtag', 'Source', 'Count', 'Date Added', 'Status', 'Status2'
 ];
 const CLIENT_HEADER = [
     'No', 'Profile URL', 'Username', 'Via', 'Source',
@@ -70,11 +70,11 @@ async function writeHeaders() {
             valueInputOption: 'RAW', resource: { values: [CLIENT_HEADER] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A1:F1',
+            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A1:G1',
             valueInputOption: 'RAW', resource: { values: [['']] }
         });
         await sheetsClient.spreadsheets.values.update({
-            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A2:F2',
+            spreadsheetId: SHEETS_ID, range: 'VendorHashtags!A2:G2',
             valueInputOption: 'RAW', resource: { values: [HASHTAG_HEADER] }
         });
         console.log('[SHEETS] Headers written');
@@ -159,18 +159,80 @@ async function readRange(range) {
 }
 
 async function readHashtags() {
-    const rows = await readRange('VendorHashtags!A1:F500');
+    const rows = await readRange('VendorHashtags!A1:G700');
     const hashtags = [];
-    for (const row of rows.slice(2)) {
-        if (row.length >= 6 && row[1] && (row[5] === 'OK' || row[5] === 'NEW')) {
-            hashtags.push(row[1]);
+    let maxRow = 2;
+    for (let i = 2; i < rows.length; i++) {
+        const h = rows[i];
+        if (h && h[1] && (h[5] === 'OK' || h[5] === 'NEW')) {
+            hashtags.push(h[1]);
+            _seenHashtags[h[1].toLowerCase()] = i + 1; // key=hashtag, val=sheet row
         }
+        if (i + 1 > maxRow) maxRow = i + 1;
     }
-    console.log(`[SHEETS] Loaded ${hashtags.length} hashtags (OK + NEW)`);
+    // Sync nextRow to actual last row + 1 so new hashtags append after existing data
+    nextRow.VendorHashtags = maxRow + 1;
+    console.log(`[SHEETS] Loaded ${hashtags.length} hashtags (OK + NEW), nextRow=${nextRow.VendorHashtags}`);
     return hashtags;
 }
 
-const _seenHashtags = new Set();
+// _seenHashtags: row-number map for in-memory dedup + G-column status updates
+// Populated once by loadSeenHashtags() at init, updated on every write
+const _seenHashtags = {}; // { 'muasemarang': 3, 'weddingmakeup': 4, ... }
+
+async function loadSeenHashtags() {
+    const rows = await readRange('VendorHashtags!A1:G700');
+    let maxRow = 2;
+    for (let i = 2; i < rows.length; i++) {
+        const h = rows[i];
+        if (h && h[1]) {
+            _seenHashtags[h[1].toLowerCase()] = i + 1; // sheet row number (1-indexed)
+        }
+        if (i + 1 > maxRow) maxRow = i + 1;
+    }
+    // Sync nextRow.VendorHashtags to actual last row + 1
+    const savedNext = nextRow.VendorHashtags;
+    nextRow.VendorHashtags = maxRow + 1;
+    if (savedNext < nextRow.VendorHashtags) {
+        console.log(`[SHEETS] VendorHashtags nextRow: ${savedNext} → ${nextRow.VendorHashtags} (sheet had data up to row ${maxRow})`);
+    }
+}
+
+async function clearExecutingMarkers() {
+    const rows = await readRange('VendorHashtags!A1:G700');
+    const updates = [];
+    for (let i = 2; i < rows.length; i++) {
+        if (rows[i][6] === 'Executing') {
+            updates.push({ row: i + 1, values: [['']] });
+        }
+    }
+    if (updates.length === 0) return;
+    // Batch clear via data value input (one range per row)
+    for (const u of updates) {
+        await writeRange(`VendorHashtags!G${u.row}:G${u.row}`, [['']]);
+    }
+    console.log(`[SHEETS] Cleared ${updates.length} 'Executing' markers`);
+}
+
+async function markHashtagExecuting(hashtag) {
+    const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
+    const row = _seenHashtags[clean];
+    if (!row) {
+        // Not in sheet yet — will be added by writeNewHashtag, mark after write
+        return;
+    }
+    await writeRange(`VendorHashtags!G${row}:G${row}`, [['Executing']]);
+}
+
+async function markHashtagDone(hashtag, success = true) {
+    const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
+    const row = _seenHashtags[clean];
+    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const val = success ? `Executed ${now}` : `Failed ${now}`;
+    if (row) {
+        await writeRange(`VendorHashtags!G${row}:G${row}`, [[val]]);
+    }
+}
 
 const _genericHashtags = new Set([
     'instagram', 'instagood', 'instadaily', 'instapic', 'instalike', 'likeforlike',
@@ -189,25 +251,15 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (!sheetsClient || !hashtag) return;
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
-    if (_seenHashtags.has(clean)) return;
+    if (_seenHashtags[clean]) return;         // already in sheet (key = row number)
     if (_genericHashtags.has(clean)) return;
 
-    // Quick dedup scan only for in-session duplicates (not for persist tracking)
-    const rows = await readRange('VendorHashtags!B1:F500');
-    for (let i = 2; i < rows.length; i++) {
-        if (rows[i][0] && rows[i][0].toLowerCase() === clean) {
-            _seenHashtags.add(clean);
-            return;
-        }
-    }
-
-    // Use in-memory counter — simple, no scan needed
     const writeRow = nextRow.VendorHashtags;
     const today = new Date().toISOString().split('T')[0];
     await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
     nextRow.VendorHashtags = writeRow + 1;
-    _seenHashtags.add(clean);
-    console.log(`  [NEW HASHTAG] #${clean}`);
+    _seenHashtags[clean] = writeRow;          // register: key=hashtag, value=row
+    console.log(`  [NEW HASHTAG] #${clean} → row ${writeRow}`);
 }
 
 async function readVisitedProfiles() {
@@ -461,4 +513,7 @@ export {
     updateLastIndex,
     readRange,
     persistState,
+    clearExecutingMarkers,
+    markHashtagExecuting,
+    markHashtagDone,
 };

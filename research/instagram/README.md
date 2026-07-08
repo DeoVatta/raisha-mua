@@ -94,8 +94,24 @@ Foreign accounts (USA, India, Pakistan, etc.) are skipped with `[SKIP] @username
 | Competitors | No, Display Name, Profile URL, Username, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Competitors |
 | Vendor | No, Display Name, Profile URL, Username, Category, Location, Region, Followers, Following, Posts, Avg Likes, Engagement Rate, Hashtags, Bio, Status, Collabs, Date | nextRow.Vendor |
 | Client | No, Profile URL, Username, Via, Source, Comment Text, Location, Date Comment | nextRow.Client |
-| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status | nextRow.VendorHashtags |
+| VendorHashtags | (empty), Hashtag, Source, Count, Date Added, Status, **Status2** | nextRow.VendorHashtags |
 | Setting | `nextrow_competitors` (row 50), `nextrow_vendor` (row 51), `nextrow_client` (row 52), `nextrow_vendorhashtags` (row 53) | Persisted at end of run |
+
+### VendorHashtags Status2 Column (G)
+
+Column G (`Status2`) tracks real-time pipeline execution:
+
+| Value | Meaning |
+|-------|---------|
+| *(empty)* | Hashtag not yet processed this run |
+| `Executing` | Pipeline is currently processing this hashtag |
+| `Executed 2026-07-08 14:32` | Hashtag finished successfully with timestamp |
+| `Failed 2026-07-08 14:35` | Pipeline crashed/aborted while processing this hashtag |
+
+- On run start: all existing `Executing` markers are cleared
+- When pipeline starts a hashtag: writes `Executing` to that hashtag's row
+- When pipeline finishes a hashtag: writes `Executed {timestamp}`
+- On SIGINT / fatal error: writes `Failed {timestamp}` to all selected hashtags
 
 ## Pipeline Flow
 
