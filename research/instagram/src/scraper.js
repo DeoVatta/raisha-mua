@@ -809,5 +809,4 @@ export {
     decodeShortcode,
     fetchAllPostCommentsGraphQL,
     fetchPostCommentsGraphQL,
-    fetchAllPostCommentsGraphQL,
 };
