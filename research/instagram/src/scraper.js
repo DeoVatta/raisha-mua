@@ -190,9 +190,20 @@ function makeStealthContext() {
 async function initBrowser() {
     if (_browser) return;
 
-    // Ensure auth: validate existing cookies or auto-login
-    await ensureAuth();
-    loadCookies();
+    // ensureAuth() validates/creates session and returns fresh cookies.
+    // Use those directly — do NOT re-read from file (which may have stale sessionid).
+    const freshCookies = await ensureAuth();
+    if (freshCookies) {
+        _cookies = freshCookies;
+        _cookieStr = _cookies.map(c => c.name + '=' + c.value).join('; ');
+        _csrftoken = _cookies.find(c => c.name === 'csrftoken')?.value || '';
+        // Save fresh cookies to file so next run doesn't re-login unnecessarily
+        const cookieFile = path.join(__dirname, '..', 'instagram-cookies.json');
+        const fixed = _cookies.map(c => ({ ...c, sameSite: c.sameSite === 'no_restriction' ? 'None' : (c.sameSite || 'None') }));
+        fs.writeFileSync(cookieFile, JSON.stringify(fixed, null, 4));
+    } else {
+        loadCookies();
+    }
     console.log('[BROWSER] Launching...');
     _browser = await chromium.launch({
         headless: true,

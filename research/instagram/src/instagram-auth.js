@@ -166,21 +166,36 @@ async function loginInstagram(username, password) {
 
         await page.waitForTimeout(6000);
 
+        // Check for 2FA / verification challenge
+        const url = page.url();
+        if (url.includes('/auth_platform/recaptcha') || url.includes('/challenge/')) {
+            console.log('[AUTH] Challenge detected — waiting for completion...');
+            // Wait up to 30s for redirect away from challenge
+            for (let i = 0; i < 30; i++) {
+                await page.waitForTimeout(1000);
+                const currentUrl = page.url();
+                if (!currentUrl.includes('/challenge/') && !currentUrl.includes('/auth_platform/')) {
+                    console.log(`[AUTH] Challenge passed — redirected to: ${currentUrl.substring(0, 60)}`);
+                    break;
+                }
+                if (i % 10 === 0) console.log(`[AUTH] Still on challenge page... (${i}s)`);
+            }
+        }
+
         // Handle "Save Info" / "Not Now" prompt
         try {
             const saveBtn = page.locator('button:has-text("Save Info"), button:has-text("Not Now")').first();
-            if (await saveBtn.isVisible({ timeout: 5000 })) {
+            if (await saveBtn.isVisible({ timeout: 3000 })) {
                 await saveBtn.click();
                 console.log('[AUTH] Handled save info prompt');
                 await page.waitForTimeout(2000);
             }
         } catch { /* no prompt */ }
 
-        const url = page.url();
-        console.log(`[AUTH] After login URL: ${url}`);
+        const finalUrl = page.url();
+        console.log(`[AUTH] After login URL: ${finalUrl}`);
 
-        if (url.includes('/accounts/login')) {
-            // Still on login page — check for error message
+        if (finalUrl.includes('/accounts/login')) {
             const errorText = await page.locator('#slfErrorAlert, [role="alert"]').textContent().catch(() => '');
             console.log(`[AUTH] Login FAILED — ${errorText || 'check credentials'}`);
             await browser.close();
@@ -190,9 +205,25 @@ async function loginInstagram(username, password) {
         console.log(`[AUTH] Login SUCCESS`);
         await page.waitForTimeout(3000);
 
-        // Extract cookies
+        // Extract cookies — verify sessionid is present before returning
         const cookies = await context.cookies('https://www.instagram.com');
-        console.log(`[AUTH] Extracted ${cookies.length} cookies`);
+        const hasSessionId = cookies.some(c => c.name === 'sessionid' && c.value);
+        if (!hasSessionId) {
+            console.log(`[AUTH] Login succeeded but no sessionid in cookies — retrying...`);
+            await page.waitForTimeout(5000);
+            const cookiesRetry = await context.cookies('https://www.instagram.com');
+            const hasSessionIdRetry = cookiesRetry.some(c => c.name === 'sessionid' && c.value);
+            if (hasSessionIdRetry) {
+                console.log(`[AUTH] sessionid found on retry`);
+                await browser.close();
+                return cookiesRetry;
+            }
+            console.log(`[AUTH] WARNING: no sessionid found — API calls may fail`);
+            await browser.close();
+            return cookies;
+        }
+
+        console.log(`[AUTH] Extracted ${cookies.length} cookies (sessionid confirmed)`);
         await browser.close();
         return cookies;
 
