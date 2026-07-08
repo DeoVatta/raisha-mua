@@ -49,6 +49,9 @@ import {
     PHASE2_TIMEOUT_MIN,
 } from './src/config.js';
 
+// Track current hashtag for SIGINT crash handler
+let _currentHashtag = null;
+
 // ============== MAIN ==============
 async function run() {
     console.log('='.repeat(60));
@@ -61,14 +64,15 @@ async function run() {
     await initBrowser();
     await refreshCookieStr();
 
-    // Load state
+    // Load state — readHashtags FIRST to populate _seenHashtags,
+    // so clearExecutingMarkers can find and clear stale 'Executing' rows
     const approvedHashtags = await readHashtags();
     if (approvedHashtags.length === 0) {
         console.log('[ERROR] No approved hashtags in VendorHashtags sheet');
         process.exit(1);
     }
 
-    await clearExecutingMarkers();
+    await clearExecutingMarkers();  // uses _seenHashtags populated above
     const visited = await readVisitedProfiles();
     let lastIndex = await readLastIndex();
 
@@ -83,6 +87,7 @@ async function run() {
     // ================================================================
     const hashtagIdx = lastIndex % approvedHashtags.length;
     const hashtag = approvedHashtags[hashtagIdx];
+    _currentHashtag = hashtag; // track for SIGINT
 
     console.log('-'.repeat(60));
     console.log(`[RUN] Hashtag: #${hashtag} | index: ${hashtagIdx}`);
@@ -100,6 +105,8 @@ async function run() {
 
     if (posts.length === 0) {
         console.log('[PHASE 1] No posts found. Skipping hashtag.');
+        // Mark done FIRST, then advance index — so crash between these two
+        // still leaves 'Executing' marker and a re-run picks the same hashtag
         await markHashtagDone(hashtag, true);
         await updateLastIndex((lastIndex + 1) % approvedHashtags.length);
         await closeBrowser();
@@ -386,11 +393,12 @@ async function run() {
     }
 
     // ================================================================
-    // PHASE 11 — Next hashtag index → update last_scanned_index
+    // PHASE 11 — Mark done FIRST, then advance index
+    // Crash between these two = 'Executing' marker stays, re-run picks same hashtag
     // ================================================================
+    await markHashtagDone(hashtag, true);
     const nextIndex = (lastIndex + 1) % approvedHashtags.length;
     await updateLastIndex(nextIndex);
-    await markHashtagDone(hashtag, true);
 
     // Cleanup
     await closeBrowser();
@@ -419,6 +427,9 @@ function printSummary(stats, hashtag, lastIdx, nextIdx, totalHashtags) {
 // ============== HANDLE ERRORS ==============
 process.on('SIGINT', async () => {
     console.log('\n[ABORT] Closing...');
+    if (_currentHashtag) {
+        await markHashtagDone(_currentHashtag, false).catch(() => {});
+    }
     await closeBrowser().catch(() => {});
     process.exit(1);
 });

@@ -164,9 +164,14 @@ async function readHashtags() {
     let maxRow = 2;
     for (let i = 2; i < rows.length; i++) {
         const h = rows[i];
+        // _seenHashtags: always populate for every hashtag with data in col B
+        // (needed by clearExecutingMarkers + markHashtagDone even for non-OK/NOW rows)
+        if (h && h[1]) {
+            _seenHashtags[h[1].toLowerCase()] = i + 1;
+        }
+        // approvedHashtags: only OK + NEW are queued for processing
         if (h && h[1] && (h[5] === 'OK' || h[5] === 'NEW')) {
             hashtags.push(h[1]);
-            _seenHashtags[h[1].toLowerCase()] = i + 1; // key=hashtag, val=sheet row
         }
         if (i + 1 > maxRow) maxRow = i + 1;
     }
@@ -177,26 +182,8 @@ async function readHashtags() {
 }
 
 // _seenHashtags: row-number map for in-memory dedup + G-column status updates
-// Populated once by loadSeenHashtags() at init, updated on every write
+// Populated once by readHashtags() at init, updated on every writeNewHashtag()
 const _seenHashtags = {}; // { 'muasemarang': 3, 'weddingmakeup': 4, ... }
-
-async function loadSeenHashtags() {
-    const rows = await readRange('VendorHashtags!A1:G700');
-    let maxRow = 2;
-    for (let i = 2; i < rows.length; i++) {
-        const h = rows[i];
-        if (h && h[1]) {
-            _seenHashtags[h[1].toLowerCase()] = i + 1; // sheet row number (1-indexed)
-        }
-        if (i + 1 > maxRow) maxRow = i + 1;
-    }
-    // Sync nextRow.VendorHashtags to actual last row + 1
-    const savedNext = nextRow.VendorHashtags;
-    nextRow.VendorHashtags = maxRow + 1;
-    if (savedNext < nextRow.VendorHashtags) {
-        console.log(`[SHEETS] VendorHashtags nextRow: ${savedNext} → ${nextRow.VendorHashtags} (sheet had data up to row ${maxRow})`);
-    }
-}
 
 async function clearExecutingMarkers() {
     const rows = await readRange('VendorHashtags!A1:G2000');
