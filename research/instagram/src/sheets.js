@@ -1,11 +1,10 @@
 /**
  * Instagram Prospector - Google Sheets Integration
  *
- * Simple append mechanism:
- * - Row 1 = empty, Row 2 = header, Row 3+ = data
- * - nextRow tracks the next empty row (persisted to Setting sheet)
- * - No column = nextRow - 2 (always sequential, derived, never needs tracking)
- * - Mutex per sheet prevents concurrent phases from grabbing the same row
+ * All writes use sheetsAppend() which auto-finds the first empty row
+ * via Google Sheets append API (insertDataOption: INSERT_ROWS).
+ * No row tracking needed — append handles everything.
+ * Mutex per sheet prevents concurrent writes from grabbing the same slot.
  */
 
 import { google } from 'googleapis';
@@ -86,36 +85,23 @@ async function writeHeaders() {
 // ============== INIT ==============
 let sheetsClient = null;
 
-// nextRow: next empty row to write (Row 1=empty, Row 2=header, Row 3+=data)
-// Persisted to Setting sheet for cross-session survival
-const nextRow = { Competitors: 3, Vendor: 3, Client: 3, VendorHashtags: 3 };
-
 async function _loadFromSetting() {
-    const rows = await readRange('Setting!A1:B60');
-    for (const row of rows) {
-        if (row[0] === 'nextrow_competitors') nextRow.Competitors = parseInt(row[1]) || nextRow.Competitors;
-        if (row[0] === 'nextrow_vendor') nextRow.Vendor = parseInt(row[1]) || nextRow.Vendor;
-        if (row[0] === 'nextrow_client') nextRow.Client = parseInt(row[1]) || nextRow.Client;
-        if (row[0] === 'nextrow_vendorhashtags') nextRow.VendorHashtags = parseInt(row[1]) || nextRow.VendorHashtags;
-    }
+    // no-op: no persisted state needed with append approach
 }
 
+// _saveToSetting: no longer tracks nextRow — sheetsAppend auto-finds empty rows.
+// Still clears stale last_scanned_index to prevent stale pointer issues.
 async function _saveToSetting() {
     if (!sheetsClient) return;
     try {
         await sheetsClient.spreadsheets.values.update({
             spreadsheetId: SHEETS_ID,
-            range: 'Setting!A50:B53',
+            range: 'Setting!B20:B20',
             valueInputOption: 'RAW',
-            resource: { values: [
-                ['nextrow_competitors', nextRow.Competitors],
-                ['nextrow_vendor', nextRow.Vendor],
-                ['nextrow_client', nextRow.Client],
-                ['nextrow_vendorhashtags', nextRow.VendorHashtags],
-            ] }
+            resource: { values: [['']] }
         });
     } catch (e) {
-        console.log(`[SHEETS] Failed to persist: ${e.message}`);
+        console.log(`[SHEETS] _saveToSetting error: ${e.message}`);
     }
 }
 
@@ -139,7 +125,7 @@ async function initSheets() {
 
     await writeHeaders();
     await _loadFromSetting();
-    console.log(`[SHEETS] nextRow → Competitors:${nextRow.Competitors} Vendor:${nextRow.Vendor} Client:${nextRow.Client} VendorHashtags:${nextRow.VendorHashtags}`);
+    console.log('[SHEETS] Ready (append mode — no row tracking)');
 
     return sheetsClient;
 }
@@ -158,66 +144,52 @@ async function readRange(range) {
     }
 }
 
+// _seenHashtags: Set for in-memory dedup
+const _seenHashtags = new Set();
+// _hashtagRows: hashtag → row number map for G-column status updates
+const _hashtagRows = {}; // { 'muasemarang': 3, 'weddingmakeup': 4, ... }
+
 async function readHashtags() {
     const rows = await readRange('VendorHashtags!A1:G2000');
     const hashtags = [];
-    let maxRow = 2;
     for (let i = 2; i < rows.length; i++) {
         const h = rows[i];
-        // _seenHashtags: always populate for every hashtag with data in col B
-        // (needed by clearExecutingMarkers + markHashtagDone even for non-OK/NOW rows)
         if (h && h[1]) {
-            _seenHashtags[h[1].toLowerCase()] = i + 1;
+            const name = h[1].toLowerCase();
+            _seenHashtags.add(name);
+            _hashtagRows[name] = i + 1;
         }
-        // approvedHashtags: only OK + NEW are queued for processing
         if (h && h[1] && (h[5] === 'OK' || h[5] === 'NEW')) {
             hashtags.push(h[1]);
         }
-        if (i + 1 > maxRow) maxRow = i + 1;
     }
-    // Sync nextRow to actual last row + 1 so new hashtags append after existing data
-    nextRow.VendorHashtags = maxRow + 1;
-    console.log(`[SHEETS] Loaded ${hashtags.length} hashtags (OK + NEW), nextRow=${nextRow.VendorHashtags}`);
+    console.log(`[SHEETS] Loaded ${hashtags.length} hashtags (OK + NEW)`);
     return hashtags;
-}
-
-// _seenHashtags: row-number map for in-memory dedup + G-column status updates
-// Populated once by readHashtags() at init, updated on every writeNewHashtag()
-const _seenHashtags = {}; // { 'muasemarang': 3, 'weddingmakeup': 4, ... }
-
-async function clearExecutingMarkers() {
-    const rows = await readRange('VendorHashtags!A1:G2000');
-    const updates = [];
-    for (let i = 2; i < rows.length; i++) {
-        if (rows[i][6] === 'Executing') {
-            updates.push({ row: i + 1, values: [['']] });
-        }
-    }
-    if (updates.length === 0) return;
-    // Batch clear via data value input (one range per row)
-    for (const u of updates) {
-        await writeRange(`VendorHashtags!G${u.row}:G${u.row}`, [['']]);
-    }
-    console.log(`[SHEETS] Cleared ${updates.length} 'Executing' markers`);
 }
 
 async function markHashtagExecuting(hashtag) {
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
-    const row = _seenHashtags[clean];
-    if (!row) {
-        // Not in sheet yet — will be added by writeNewHashtag, mark after write
-        return;
-    }
+    const row = _hashtagRows[clean];
+    if (!row) return;
     await writeRange(`VendorHashtags!G${row}:G${row}`, [['Executing']]);
 }
 
 async function markHashtagDone(hashtag, success = true) {
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
-    const row = _seenHashtags[clean];
+    const row = _hashtagRows[clean];
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const val = success ? `Executed ${now}` : `Failed ${now}`;
     if (row) {
         await writeRange(`VendorHashtags!G${row}:G${row}`, [[val]]);
+    }
+}
+
+async function clearExecutingMarkers() {
+    const rows = await readRange('VendorHashtags!A1:G2000');
+    for (let i = 2; i < rows.length; i++) {
+        if (rows[i][6] === 'Executing') {
+            await writeRange(`VendorHashtags!G${i + 1}:G${i + 1}`, [['']]);
+        }
     }
 }
 
@@ -238,27 +210,23 @@ async function writeNewHashtag(hashtag, sourceUsername) {
     if (!sheetsClient || !hashtag) return;
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
-    if (_seenHashtags[clean]) return;         // already in sheet
+    if (_seenHashtags.has(clean)) return;
     if (_genericHashtags.has(clean)) return;
 
-    // Mutex: wait for any in-flight write to finish before grabbing row
     await acquireLock('VendorHashtags').prev;
     const lockState = {};
     _locks.VendorHashtags = _locks.VendorHashtags.then(() => {
         lockState.release = () => { _locks.VendorHashtags = Promise.resolve(); };
     });
     try {
-        // Re-check after acquiring lock (another call may have written it)
-        if (_seenHashtags[clean]) return;
+        if (_seenHashtags.has(clean)) return;
 
-        const writeRow = nextRow.VendorHashtags;
         const today = new Date().toISOString().split('T')[0];
-        const ok = await writeRange(`VendorHashtags!B${writeRow}:F${writeRow}`, [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
+        const ok = await sheetsAppend('VendorHashtags', 'F', [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
 
         if (ok) {
-            nextRow.VendorHashtags = writeRow + 1;
-            _seenHashtags[clean] = writeRow;
-            console.log(`  [NEW HASHTAG] #${clean} → row ${writeRow}`);
+            _seenHashtags.add(clean);
+            console.log(`  [NEW HASHTAG] #${clean} from @${sourceUsername}`);
         } else {
             console.log(`  [SKIP HASHTAG] #${clean} write failed, will retry next run`);
         }
@@ -283,29 +251,42 @@ async function readVisitedProfiles() {
     return visited;
 }
 
-async function updateLastIndex(index) {
-    if (!sheetsClient) return;
-    // Write to first available row in Setting sheet (find last_scanned_index row or write new)
-    const rows = await readRange('Setting!A1:B50');
-    let found = false;
-    for (let i = 0; i < rows.length; i++) {
-        if (rows[i][0] === 'last_scanned_index') {
-            await writeRange(`Setting!B${i + 1}:B${i + 1}`, [[index]]);
-            found = true;
-            break;
+/**
+ * Find the index in approvedHashtags array where the next run should start.
+ * Logic: scan G column for last "Executed" row → start at next OK/NEW hashtag.
+ * User can control by: setting G column to empty (start from beginning),
+ * or by deleting "Executed" entries to restart from that point.
+ *
+ * @param {string[]} approvedHashtags - array of OK+NEW hashtag names
+ * @returns {number} - array index to start from (0-based)
+ */
+async function findNextHashtagIndex(approvedHashtags) {
+    if (approvedHashtags.length === 0) return 0;
+
+    // Read G column for all rows
+    const rows = await readRange('VendorHashtags!A1:G2000');
+    const hSet = new Set(approvedHashtags.map(h => h.toLowerCase()));
+
+    let lastExecutedIdx = -1;
+
+    // Scan rows — rows[0]=empty, rows[1]=row2(header), rows[2+]=data
+    for (let i = 2; i < rows.length; i++) {
+        const h = rows[i];
+        if (!h || !h[1]) continue;
+        const name = h[1].toLowerCase();
+        const gVal = (h[6] || '').trim();
+        const idx = approvedHashtags.findIndex(hh => hh.toLowerCase() === name);
+        if (idx < 0) continue;
+
+        // Track last row that was successfully executed
+        if (gVal.startsWith('Executed ')) {
+            lastExecutedIdx = idx;
         }
     }
-    if (!found) {
-        await writeRange('Setting!A50:B50', [['last_scanned_index', index]]);
-    }
-}
 
-async function readLastIndex() {
-    const rows = await readRange('Setting!A1:B50');
-    for (const row of rows) {
-        if (row[0] === 'last_scanned_index' && row[1]) return parseInt(row[1]) || 0;
-    }
-    return 0;
+    // Next run: start at lastExecutedIdx + 1, wrap around
+    const nextIdx = (lastExecutedIdx + 1) % approvedHashtags.length;
+    return nextIdx;
 }
 
 // ============== WRITE ==============
@@ -326,11 +307,33 @@ async function writeRange(range, values) {
     }
 }
 
+// append: auto-finds first empty row, inserts new row there, writes data.
+// insertDataOption: 'INSERT_ROWS' pushes existing rows down — no overwrite, no grid limit.
+async function sheetsAppend(sheetName, endCol, values) {
+    if (!sheetsClient) {
+        console.log(`[SHEETS DRY] ${sheetName} APPEND:`, JSON.stringify(values).slice(0, 150));
+        return false;
+    }
+    const range = `${sheetName}!A:${endCol}`;
+    try {
+        const res = await sheetsClient.spreadsheets.values.append({
+            spreadsheetId: SHEETS_ID,
+            range,
+            valueInputOption: 'RAW',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values }
+        });
+        return res.data?.updates?.updatedRows > 0;
+    } catch (e) {
+        console.log(`[SHEETS] Append error on ${sheetName}: ${e.message}`);
+        return false;
+    }
+}
+
 // ============== MUTEX ==============
 // Serializes write operations per sheet.
-// Without this: Phase 2 + Phase 3 both call getNextRow() simultaneously,
-// both get the same row number (race), and the second write overwrites the first.
-// With this: each phase waits for the other's lock to release before grabbing a row.
+// Google Sheets append is atomic per call — mutex prevents double-write
+// when multiple phases process the same data simultaneously.
 const _locks = {};
 function acquireLock(sheetName) {
     if (!_locks[sheetName]) _locks[sheetName] = Promise.resolve();
@@ -339,14 +342,6 @@ function acquireLock(sheetName) {
         lockState.release = () => { _locks[sheetName] = Promise.resolve(); };
     });
     return lockState;
-}
-
-// ============== ROW GETTER ==============
-// Uses in-memory nextRow (protected by mutex).
-// This is safe: mutex guarantees only one write happens at a time,
-// so nextRow is always accurate — no stale cache problem.
-function getNextRow(sheetName) {
-    return nextRow[sheetName];
 }
 
 // ============== PROFILE WRITER ==============
@@ -375,8 +370,6 @@ async function writeProfile(profile, existingUsernames) {
             return;
         }
 
-        const rowNum = nextRow[sheetName];          // get current row
-        const sheetNo = rowNum - 2;                  // No column = always sequential
         const today = new Date().toISOString().split('T')[0];
 
         const hashtagsStr = [...(profile.hashtags || [])].join(' ');
@@ -388,7 +381,7 @@ async function writeProfile(profile, existingUsernames) {
 
         if (profile.type === 'competitor') {
             values = [[
-                sheetNo,
+                '', // No — auto-numbered by Sheets
                 profile.displayName || username,
                 profile.profileUrl || `https://instagram.com/${username}/`,
                 `@${username}`,
@@ -405,10 +398,10 @@ async function writeProfile(profile, existingUsernames) {
                 collabsStr,
                 today
             ]];
-            endCol = 'P';
+            endCol = 'Q';
         } else if (profile.type === 'vendor') {
             values = [[
-                sheetNo,
+                '', // No — auto-numbered by Sheets
                 profile.displayName || username,
                 profile.profileUrl || `https://instagram.com/${username}/`,
                 `@${username}`,
@@ -426,12 +419,12 @@ async function writeProfile(profile, existingUsernames) {
                 collabsStr,
                 today
             ]];
-            endCol = 'P';
+            endCol = 'Q';
         } else {
             // Client sheet: A=No, B=Profile URL, C=Username, D=Via, E=Source,
             //                F=Comment Text, G=Location, H=Date Comment
             values = [[
-                sheetNo,
+                '', // No — auto-numbered by Sheets
                 profile.profileUrl || `https://instagram.com/${username}/`,
                 `@${username}`,
                 profile.sourceHashtag || '',
@@ -442,11 +435,10 @@ async function writeProfile(profile, existingUsernames) {
             endCol = 'G';
         }
 
-        await writeRange(`${sheetName}!A${rowNum}:${endCol}${rowNum}`, values);
-        nextRow[sheetName] = rowNum + 1;              // advance cursor
+        await sheetsAppend(sheetName, endCol, values);
         existingUsernames.add(username);
 
-        console.log(`  [SAVED] @${username} to ${sheetName} (row ${rowNum}, No=${sheetNo})`);
+        console.log(`  [SAVED] @${username} to ${sheetName}`);
     } finally {
         if (lockState.release) lockState.release();
     }
@@ -468,15 +460,13 @@ async function writeClientFromComment(clientData, existingUsernames) {
         lockState.release = () => { _locks.Client = Promise.resolve(); };
     });
     try {
-        const rowNum = nextRow.Client;
-        const sheetNo = rowNum - 2;
         const today = new Date().toISOString().split('T')[0];
         const via = clientData.via || 'comment';
         const source = clientData.source || '';
         const commentText = (clientData.commentText || clientData.text || '').slice(0, 200);
 
-        await writeRange(`Client!A${rowNum}:H${rowNum}`, [[
-            sheetNo,
+        await sheetsAppend('Client', 'H', [[
+            '', // No — auto-numbered by Sheets
             `https://instagram.com/${username}/`,
             `@${username}`,
             via,
@@ -486,10 +476,9 @@ async function writeClientFromComment(clientData, existingUsernames) {
             today,
         ]]);
 
-        nextRow.Client = rowNum + 1;
         existingUsernames.add(username);
 
-        console.log(`  [SAVED CLIENT] @${username} via ${via} (row ${rowNum}, No=${sheetNo})`);
+        console.log(`  [SAVED CLIENT] @${username} via ${via}`);
     } finally {
         if (lockState.release) lockState.release();
     }
@@ -506,11 +495,10 @@ export {
     initSheets,
     readHashtags,
     readVisitedProfiles,
-    readLastIndex,
+    findNextHashtagIndex,
     writeProfile,
     writeClientFromComment,
     writeNewHashtag,
-    updateLastIndex,
     readRange,
     persistState,
     clearExecutingMarkers,
