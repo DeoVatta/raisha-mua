@@ -177,7 +177,7 @@ async function markHashtagExecuting(hashtag) {
 async function markHashtagDone(hashtag, success = true) {
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     const row = _hashtagRows[clean];
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const now = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 16);
     const val = success ? `Executed ${now}` : `Failed ${now}`;
     if (row) {
         await writeRange(`VendorHashtags!G${row}:G${row}`, [[val]]);
