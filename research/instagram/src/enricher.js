@@ -91,6 +91,7 @@ async function enrichProfile(username, postData = null) {
         try {
             const profilePostUrls = await scrapeProfilePosts(username, 12);
             console.log(`  [POSTS] Found ${profilePostUrls.length} posts on profile`);
+            profile.profilePostUrls = profilePostUrls;
 
             // Enrich posts in parallel batches (3 concurrent, 2s between batches)
             if (profilePostUrls.length > 0) {

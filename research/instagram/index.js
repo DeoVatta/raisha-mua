@@ -121,6 +121,7 @@ async function run() {
 
     const collabQueue = []; // { username, depth, source }
     const seenInQueue = new Set();
+    const vendorPostUrls = new Set(); // nested discovery: collect vendor post URLs for Phase 8
 
     for (let i = 0; i < posts.length; i++) {
         const post = posts[i];
@@ -218,6 +219,16 @@ async function run() {
             const mentions = [...(postData.mentions || [])];
             const collabs = [...(postData.collabs || [])];
 
+            // Nested vendor discovery: collect vendor/competitor post URLs for Phase 8
+            const profilePostUrls = [...(profile.profilePostUrls || [])];
+            if (profilePostUrls.length > 0) {
+                const MAX_VENDOR_POSTS = 12;
+                for (const url of profilePostUrls.slice(0, MAX_VENDOR_POSTS)) {
+                    vendorPostUrls.add(url);
+                }
+                console.log(`  [NESTED] Collected ${Math.min(profilePostUrls.length, MAX_VENDOR_POSTS)} posts from @${enrichedUsername}`);
+            }
+
             for (const m of mentions) {
                 const mLower = m.toLowerCase();
                 if (!visited.has(mLower) && !seenInQueue.has(mLower)) {
@@ -236,17 +247,23 @@ async function run() {
     }
 
     // ================================================================
-    // PHASE 7 — Collect last 20 post URLs for comment extraction
+    // PHASE 7 — Collect hashtag posts + vendor posts for Phase 8
     // ================================================================
     console.log('\n' + '-'.repeat(60));
-    console.log('[PHASE 7] Last 20 posts for comment extraction...');
+    const commentPosts = posts.slice(-20).map(p => ({ ...p, _source: 'hashtag' }));
+
+    // Merge vendor/competitor post URLs (nested discovery) into comment pool
+    const vendorPostArray = [...vendorPostUrls].map(url => {
+        const shortcode = url.split('/p/')[1]?.replace(/\/$/, '') || '';
+        return { shortcode, postUrl: url, username: '', _source: 'vendor' };
+    });
+    commentPosts.push(...vendorPostArray);
+
+    console.log(`[PHASE 7] ${posts.length} hashtag posts + ${vendorPostUrls.size} vendor posts = ${commentPosts.length} total for Phase 8`);
     console.log('-'.repeat(60) + '\n');
 
-    const last20Posts = posts.slice(-20);
-    console.log(`  → ${last20Posts.length} posts to check\n`);
-
     // ================================================================
-    // PHASE 8 — Loop last 20 posts: extract comments → filter clients → write immediately
+    // PHASE 8 — Loop posts: extract comments → filter clients → write immediately
     // ================================================================
     console.log('-'.repeat(60));
     console.log('[PHASE 8] Comment extraction → client discovery...');
@@ -254,12 +271,13 @@ async function run() {
 
     let commentCount = 0;
 
-    for (let i = 0; i < last20Posts.length; i++) {
-        const post = last20Posts[i];
+    for (let i = 0; i < commentPosts.length; i++) {
+        const post = commentPosts[i];
         const shortcode = post.shortcode || '';
         const postUrl = `https://www.instagram.com/p/${shortcode}/`;
         const pNum = i + 1;
-        console.log(`\n[COMMENT ${pNum}/${last20Posts.length}] ${shortcode}`);
+        const sourceTag = post._source === 'vendor' ? ' [VENDOR]' : '';
+        console.log(`\n[COMMENT ${pNum}/${commentPosts.length}${sourceTag}] ${shortcode}`);
 
         // Get post author from Phase 1 data (already extracted from img[alt])
         const postAuthor = (post.username || '').toLowerCase();
@@ -293,8 +311,7 @@ async function run() {
                 profileUrl: `https://instagram.com/${cUser}/`,
             };
 
-            await writeClientFromComment(clientData, new Set());
-            visited.add(cUser);
+            await writeClientFromComment(clientData, visited);
             stats.clients++;
             commentCount++;
             console.log(`    [CLIENT SAVED] @${cUser} (score: ${client.score})`);

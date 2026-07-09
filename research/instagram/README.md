@@ -16,11 +16,11 @@ Phase 2:     Loop posts sequentially (index 0 → N)
               ├─ Extract hashtags → append to VendorHashtags immediately
               ├─ Enrich profile → classify (competitor/vendor/client)
               ├─ Append to correct sheet immediately
-              ├─ Collect @mentions + collabs into queue
-              └─ Every 20 posts: re-login to refresh session
+              ├─ **Nested discovery: collect vendor/competitor post URLs**
+              └─ Collect @mentions + collabs into queue
 
-Phase 7:     Collect last 20 posts from Phase 1
-Phase 8:     Loop last 20 posts: extract comments (GraphQL) → filter clients → append immediately
+Phase 7:     Merge: last 20 hashtag posts + vendor post URLs → comment pool
+Phase 8:     Loop pool: extract comments (GraphQL) → filter clients → append immediately
 
 Phase 9:     Collab/mention queue (depth ≤ MAX_COLLAB_DEPTH = 2)
               └─ Loop queue: enrich → classify → append → collect more mentions
@@ -28,6 +28,19 @@ Phase 9:     Collab/mention queue (depth ≤ MAX_COLLAB_DEPTH = 2)
 
 Phase 11:    Mark hashtag "Executed" in G column
 ```
+
+## Nested Vendor Discovery
+
+When a vendor/competitor is found during Phase 2-6:
+1. Profile post grid is scraped (up to 12 posts via Playwright scroll)
+2. Post URLs are collected into `vendorPostUrls` Set
+3. In Phase 7, vendor posts are merged into the comment extraction pool alongside hashtag posts
+4. Phase 8 extracts comments from both hashtag posts AND vendor posts
+5. Comments → filtered clients → written to Client sheet
+
+This creates a nested loop: **hashtag → posts → vendor/competitor profile → their posts → comments → more clients & vendors**
+
+Max vendor posts per profile: 12 (capped in Phase 2-6)
 
 ## Google Sheets Append Mechanism
 
