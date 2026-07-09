@@ -152,13 +152,8 @@ async function run() {
             continue;
         }
 
-        // Skip already visited
-        if (visited.has(username)) {
-            console.log(`  [SKIP] @${username} already visited`);
-            continue;
-        }
-
-        // PHASE 2 — Enrich post (API first, browser fallback)
+        // PHASE 2 — Enrich post (API first, browser fallback) — ALWAYS for all posts
+        // (even if visited, we still want: new hashtags, new comments, new @mentions)
         const postData = await enrichPost(postUrl);
         if (!postData || !postData.username) {
             console.log(`  [SKIP] No username from post`);
@@ -167,21 +162,23 @@ async function run() {
         }
 
         const enrichedUsername = postData.username.toLowerCase();
-        if (enrichedUsername === 'deovatta' || visited.has(enrichedUsername)) continue;
+        if (enrichedUsername === 'deovatta') continue;
 
-        // PHASE 3 — Indonesian check via hashtags/caption
+        const isNewProfile = !visited.has(enrichedUsername);
+
+        // PHASE 3 — Indonesian check via hashtags/caption — always check
         const postText = ((postData.caption || '') + ' ' + (postData.hashtags || []).join(' ')).toLowerCase();
         if (!isIndonesian(postText, [], '')) {
             console.log(`  [SKIP] @${enrichedUsername} — not Indonesian`);
             continue;
         }
 
-        // PHASE 4 — Extract hashtags → write new ones immediately
+        // PHASE 4 — Extract hashtags → write new ones immediately — always extract
         for (const tag of postData.hashtags || []) {
             await writeNewHashtag(tag, enrichedUsername);
         }
 
-        // PHASE 5 — Enrich profile → classify
+        // PHASE 5 — Enrich profile → classify — always enrich (for new mentions/collab/posts)
         const profile = await enrichProfile(enrichedUsername, postData);
         if (!profile) {
             globalErrorCount++;
@@ -201,20 +198,24 @@ async function run() {
             continue;
         }
 
-        // PHASE 6 — Write to correct sheet immediately
+        // PHASE 6 — Write to sheet ONLY if new profile; if revisited, still collect new data
         const typeKey = profile.type || 'client';
         const isClient = typeKey === 'client';
 
-        await writeProfile(profile, visited);
-        visited.add(enrichedUsername);
+        if (isNewProfile) {
+            await writeProfile(profile, visited);
+            visited.add(enrichedUsername);
 
-        if (typeKey === 'competitor') stats.competitors++;
-        else if (typeKey === 'vendor') stats.vendors++;
-        else stats.clients++;
+            if (typeKey === 'competitor') stats.competitors++;
+            else if (typeKey === 'vendor') stats.vendors++;
+            else stats.clients++;
 
-        console.log(`  [SAVED] @${enrichedUsername} → ${typeKey}`);
+            console.log(`  [SAVED] @${enrichedUsername} → ${typeKey}`);
+        } else {
+            console.log(`  [REVISIT] @${enrichedUsername} — already saved, extracting new data`);
+        }
 
-        // Collect @mentions + collabs for Phase 9 (only if not client)
+        // Collect @mentions + collabs + vendor posts — ALWAYS (new collabs appear over time)
         if (!isClient) {
             const mentions = [...(postData.mentions || [])];
             const collabs = [...(postData.collabs || [])];
