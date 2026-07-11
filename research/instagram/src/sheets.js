@@ -5,6 +5,8 @@
  * via Google Sheets append API (insertDataOption: INSERT_ROWS).
  * No row tracking needed — append handles everything.
  * Mutex per sheet prevents concurrent writes from grabbing the same slot.
+ *
+ * Timestamp format: DD-MM-YY HH:MM WIB
  */
 
 import { google } from 'googleapis';
@@ -16,6 +18,18 @@ import { isIndonesian } from './classifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHEETS_ID = '1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM';
+
+// ============== TIMESTAMP ==============
+function nowWIB() {
+    return new Date(Date.now() + 7 * 60 * 60 * 1000)
+        .toISOString()
+        .replace('T', ' ')
+        .substring(0, 16)
+        .replace(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/, (_, y, m, d, hh, mm) => {
+            const yy = y.slice(2);
+            return `${d}-${m}-${yy} ${hh}:${mm} WIB`;
+        });
+}
 
 // ============== HEADER WRITER ==============
 const COMPETITORS_HEADER = [
@@ -171,14 +185,15 @@ async function markHashtagExecuting(hashtag) {
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     const row = _hashtagRows[clean];
     if (!row) return;
-    await writeRange(`VendorHashtags!G${row}:G${row}`, [['Executing']]);
+    const ts = nowWIB();
+    await writeRange(`VendorHashtags!G${row}:G${row}`, [[`Executing ${ts}`]]);
 }
 
 async function markHashtagDone(hashtag, success = true) {
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     const row = _hashtagRows[clean];
-    const now = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().replace('T', ' ').substring(0, 16);
-    const val = success ? `Executed ${now}` : `Failed ${now}`;
+    const ts = nowWIB();
+    const val = success ? `Executed ${ts}` : `Failed ${ts}`;
     if (row) {
         await writeRange(`VendorHashtags!G${row}:G${row}`, [[val]]);
     }
@@ -206,7 +221,77 @@ const _genericHashtags = new Set([
     'moderne', 'baby', 'kids', 'family', 'home', 'decoration',
 ]);
 
+// ============== HASHTAG BUFFER ==============
+// Batch buffer: collect discovered hashtags per hashtag run,
+// flush to sheet at end via AI classification.
+const _hashtagBuffer = []; // [{ tag, sourceUsername }]
+let _hashtagBufferFlushed = false;
+
+export function bufferHashtag(tag, sourceUsername) {
+    const clean = tag.replace(/^#/, '').toLowerCase().trim();
+    if (!clean) return;
+    if (_genericHashtags.has(clean)) return;
+    if (_seenHashtags.has(clean)) return;
+    // avoid duplicates within buffer
+    if (_hashtagBuffer.some(h => h.tag === clean)) return;
+    _hashtagBuffer.push({ tag: clean, sourceUsername });
+}
+
+export async function flushHashtagBuffer(approvedTags) {
+    if (!sheetsClient || _hashtagBuffer.length === 0) {
+        _hashtagBuffer.length = 0;
+        return;
+    }
+    _hashtagBufferFlushed = true;
+
+    // approvedTags is a Set of tag strings from AI classification
+    const approvedSet = new Set(approvedTags.map(t => t.replace(/^#/, '').toLowerCase().trim()));
+    const today = new Date().toISOString().split('T')[0];
+    const rows = [];
+    let written = 0;
+
+    for (const { tag, sourceUsername } of _hashtagBuffer) {
+        if (!approvedSet.has(tag)) {
+            console.log(`  [FILTERED BY AI] #${tag} — not wedding/wisuda`);
+            continue;
+        }
+        rows.push([tag, `@${sourceUsername}`, '1', today, 'NEW']);
+        _seenHashtags.add(tag);
+        written++;
+    }
+
+    if (rows.length > 0) {
+        await acquireLock('VendorHashtags').prev;
+        const lockState = {};
+        _locks.VendorHashtags = _locks.VendorHashtags.then(() => {
+            lockState.release = () => { _locks.VendorHashtags = Promise.resolve(); };
+        });
+        try {
+            const ok = await sheetsAppend('VendorHashtags', 'F', rows);
+            if (ok) {
+                console.log(`  [AI FLUSH] ${written}/${_hashtagBuffer.length} hashtags written (wedding/wisuda approved)`);
+            }
+        } finally {
+            if (lockState.release) lockState.release();
+        }
+    } else {
+        console.log(`  [AI FLUSH] 0/${_hashtagBuffer.length} hashtags approved by AI`);
+    }
+
+    _hashtagBuffer.length = 0;
+}
+
+export async function writeNewHashtagBuffered(tag, sourceUsername) {
+    bufferHashtag(tag, sourceUsername);
+}
+
 async function writeNewHashtag(hashtag, sourceUsername) {
+    // Legacy direct write — use bufferHashtag() instead for new code
+    if (_hashtagBufferFlushed) {
+        // After first flush, continue using buffer
+        bufferHashtag(hashtag, sourceUsername);
+        return;
+    }
     if (!sheetsClient || !hashtag) return;
     const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
@@ -302,6 +387,21 @@ async function writeRange(range, values) {
         });
         return true;
     } catch (e) {
+        // Quota exceeded — retry once after delay
+        if (e.message && (e.message.includes('429') || e.message.includes('quota') || e.message.includes('exceeded'))) {
+            console.log(`[SHEETS] Quota exceeded on ${range} — retrying in 10s...`);
+            await new Promise(r => setTimeout(r, 10000));
+            try {
+                await sheetsClient.spreadsheets.values.update({
+                    spreadsheetId: SHEETS_ID, range,
+                    valueInputOption: 'RAW', resource: { values }
+                });
+                return true;
+            } catch (e2) {
+                console.log(`[SHEETS] Retry failed on ${range}: ${e2.message}`);
+                return false;
+            }
+        }
         console.log(`[SHEETS] Write error on ${range}: ${e.message}`);
         return false;
     }
@@ -325,6 +425,24 @@ async function sheetsAppend(sheetName, endCol, values) {
         });
         return res.data?.updates?.updatedRows > 0;
     } catch (e) {
+        // Quota exceeded — retry once after delay
+        if (e.message && (e.message.includes('429') || e.message.includes('quota') || e.message.includes('exceeded'))) {
+            console.log(`[SHEETS] Quota exceeded appending to ${sheetName} — retrying in 10s...`);
+            await new Promise(r => setTimeout(r, 10000));
+            try {
+                const res = await sheetsClient.spreadsheets.values.append({
+                    spreadsheetId: SHEETS_ID,
+                    range,
+                    valueInputOption: 'RAW',
+                    insertDataOption: 'INSERT_ROWS',
+                    resource: { values }
+                });
+                return res.data?.updates?.updatedRows > 0;
+            } catch (e2) {
+                console.log(`[SHEETS] Retry append failed on ${sheetName}: ${e2.message}`);
+                return false;
+            }
+        }
         console.log(`[SHEETS] Append error on ${sheetName}: ${e.message}`);
         return false;
     }
@@ -499,6 +617,8 @@ export {
     writeProfile,
     writeClientFromComment,
     writeNewHashtag,
+    bufferHashtag,
+    flushHashtagBuffer,
     readRange,
     persistState,
     clearExecutingMarkers,
