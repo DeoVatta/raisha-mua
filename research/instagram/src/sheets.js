@@ -227,7 +227,7 @@ const _genericHashtags = new Set([
 const _hashtagBuffer = []; // [{ tag, sourceUsername }]
 let _hashtagBufferFlushed = false;
 
-export function bufferHashtag(tag, sourceUsername) {
+function bufferHashtag(tag, sourceUsername) {
     const clean = tag.replace(/^#/, '').toLowerCase().trim();
     if (!clean) return;
     if (_genericHashtags.has(clean)) return;
@@ -237,7 +237,7 @@ export function bufferHashtag(tag, sourceUsername) {
     _hashtagBuffer.push({ tag: clean, sourceUsername });
 }
 
-export async function flushHashtagBuffer(approvedTags) {
+async function flushHashtagBuffer(approvedTags) {
     if (!sheetsClient || _hashtagBuffer.length === 0) {
         _hashtagBuffer.length = 0;
         return;
