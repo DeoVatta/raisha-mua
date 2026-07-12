@@ -230,6 +230,29 @@ async function ensureBrowserReady() {
     }
 }
 
+// Wrap any _page operation with automatic crash recovery
+// Usage: await withPage(() => _page.goto(url, opts))
+async function withPage(fn, retries = 1) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        await ensureBrowserReady();
+        try {
+            return await fn();
+        } catch (e) {
+            if (attempt === retries) throw e;
+            const msg = e.message || '';
+            if (msg.includes('closed') || msg.includes('Target') || msg.includes('context')) {
+                _browserCrashed = true;
+                console.log(`  [BROWSER] Page crashed (attempt ${attempt + 1}), reinitializing...`);
+                await closeBrowser();
+                await initBrowser();
+                await sleep(2000);
+            } else {
+                throw e;
+            }
+        }
+    }
+}
+
 async function initBrowser() {
     if (_browser) return;
     _browserCrashed = false;
@@ -659,30 +682,30 @@ async function enrichProfileFromPage(username) {
 
     const profileUrl = `https://www.instagram.com/${username}/`;
     try {
-        await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await withPage(() => _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }));
+        await sleep(3000);
     } catch (e) {
-        if (e.message.includes('closed')) {
-            _browserCrashed = true;
-            console.log(`  [BROWSER] @${username} — browser crashed, reinitializing...`);
-            await ensureBrowserReady();
-            await sleep(2000);
-            await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        } else {
-            throw e;
-        }
+        console.log(`  [BROWSER] @${username} — failed: ${e.message}`);
+        return buildFallbackProfile(username);
     }
-    await _page.waitForTimeout(3000);
 
-    const bodyLen = await _page.evaluate(() => document.body.innerHTML.length);
+    // All page operations wrapped with withPage for crash recovery
+    let bodyLen, ogTitle, ogDesc, ogImage, bodyText;
+    try {
+        bodyLen = await withPage(() => _page.evaluate(() => document.body.innerHTML.length));
+    } catch { bodyLen = 0; }
     if (bodyLen < 100) {
         console.log(`  [PROFILE WARN] Empty page for @${username}`);
         return buildFallbackProfile(username);
     }
 
-    // OG meta tags
-    const ogTitle = await _page.evaluate(() => document.querySelector('meta[property="og:title"]')?.content || '');
-    const ogDesc = await _page.evaluate(() => document.querySelector('meta[property="og:description"]')?.content || '');
-    const ogImage = await _page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content || '');
+    try {
+        [ogTitle, ogDesc, ogImage] = await withPage(() => Promise.all([
+            _page.evaluate(() => document.querySelector('meta[property="og:title"]')?.content || ''),
+            _page.evaluate(() => document.querySelector('meta[property="og:description"]')?.content || ''),
+            _page.evaluate(() => document.querySelector('meta[property="og:image"]')?.content || ''),
+        ]));
+    } catch { [ogTitle, ogDesc, ogImage] = ['', '', '']; }
 
     // Parse og:description: "X Followers, Y Following, Z Posts"
     let followers = 0, following = 0, posts = 0;
@@ -701,10 +724,10 @@ async function enrichProfileFromPage(username) {
     // Extract native location from JSON-LD schema
     let nativeLocation = '';
     try {
-        const ldRaw = await _page.evaluate(() => {
+        const ldRaw = await withPage(() => _page.evaluate(() => {
             const el = document.querySelector('script[type="application/ld+json"]');
             return el ? el.textContent.trim() : '';
-        });
+        }));
         if (ldRaw) {
             const ld = JSON.parse(ldRaw);
             nativeLocation = ld.address?.addressLocality || ld.address?.addressRegion || '';
@@ -712,7 +735,10 @@ async function enrichProfileFromPage(username) {
     } catch { /* ignore */ }
 
     // Body text for bio, category, WA link
-    const bodyText = await _page.evaluate(() => document.body.innerText || '');
+    try {
+        bodyText = await withPage(() => _page.evaluate(() => document.body.innerText || ''));
+    } catch { bodyText = ''; }
+
     const lines = bodyText.split('\n').map(l => l.trim()).filter(Boolean);
 
     let bio = '';
@@ -721,13 +747,10 @@ async function enrichProfileFromPage(username) {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        // Bio starts after follower/following/posts block
         if (line.match(/Followers?|Following|Post|Verified/i)) continue;
         if (line === username) continue;
         if (line.match(/Follow|Message|Edit Profile|Similar/i)) continue;
         if (line.match(/Meta|About|Blog|Jobs|Help|API|Privacy/i)) break;
-
-        // Collect bio lines
         if (bio === '' && line.length > 5) {
             bio = line;
         } else if (bio !== '' && line.length > 2 && line.length < 300) {
@@ -735,7 +758,6 @@ async function enrichProfileFromPage(username) {
         }
     }
 
-    // Detect category (usually after display name)
     for (let i = 0; i < lines.length; i++) {
         const l = lines[i].toLowerCase();
         if (l.match(/makeup artist|hairstylist|mua|fotografer|catering|dekorasi|organizer/i)) {
@@ -744,7 +766,6 @@ async function enrichProfileFromPage(username) {
         }
     }
 
-    // WA link
     const waMatch = bodyText.match(/(wa\.me\/[\d]+|whatsapp\.com\/[\w]+\/[\d]+|\+62[\d\s-]+)/i);
     if (waMatch) waLink = waMatch[0];
 
@@ -765,35 +786,40 @@ async function enrichProfileFromPage(username) {
 
 // ============== PROFILE POST SCRAPING (Playwright scroll) ==============
 async function scrapeProfilePosts(username, maxPosts = 20) {
-    if (!_page) await initBrowser();
-    await sleep(REQUEST_DELAY * 1000);
+    try {
+        await ensureBrowserReady();
+        await sleep(REQUEST_DELAY * 1000);
 
-    const profileUrl = `https://www.instagram.com/${username}/`;
-    await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await _page.waitForTimeout(2000);
+        const profileUrl = `https://www.instagram.com/${username}/`;
+        await withPage(() => _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }));
+        await sleep(2000);
 
-    // Scroll to load posts
-    let prevCount = 0;
-    let scrollCount = 0;
-    const maxScrolls = 15;
+        // Scroll to load posts
+        let prevCount = 0;
+        let scrollCount = 0;
+        const maxScrolls = 15;
 
-    while (scrollCount < maxScrolls) {
-        const urls = await _page.$$eval('a[href*="/p/"]',
-            els => [...new Set(els.map(e => e.href))]);
-        const currentCount = urls.length;
+        while (scrollCount < maxScrolls) {
+            const urls = await withPage(() => _page.$$eval('a[href*="/p/"]',
+                els => [...new Set(els.map(e => e.href))]));
+            const currentCount = urls.length;
 
-        if (currentCount > maxPosts) break;
-        if (currentCount === prevCount && scrollCount > 3) break;
+            if (currentCount > maxPosts) break;
+            if (currentCount === prevCount && scrollCount > 3) break;
 
-        prevCount = currentCount;
-        await _page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await _page.waitForTimeout(1500);
-        scrollCount++;
+            prevCount = currentCount;
+            await withPage(() => _page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)));
+            await sleep(1500);
+            scrollCount++;
+        }
+
+        const allUrls = await withPage(() => _page.$$eval('a[href*="/p/"]',
+            els => [...new Set(els.map(e => e.href))]));
+        return allUrls.slice(0, maxPosts);
+    } catch (e) {
+        console.log(`  [WARN] Could not scrape posts @${username}: ${e.message}`);
+        return [];
     }
-
-    const allUrls = await _page.$$eval('a[href*="/p/"]',
-        els => [...new Set(els.map(e => e.href))]);
-    return allUrls.slice(0, maxPosts);
 }
 
 function buildFallbackProfile(username) {
@@ -823,44 +849,52 @@ async function scrapeHashtag(hashtag, maxPosts = 200) {
     console.log(`[HASHTAG] #${hashtag}`);
     const searchUrl = `https://www.instagram.com/explore/search/keyword/?q=%23${encodeURIComponent(hashtag)}`;
 
-    await _page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 40000 });
+    try {
+        await withPage(() => _page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 40000 }));
+    } catch (e) {
+        console.log(`  [WARN] Could not load hashtag page: ${e.message}`);
+        return [];
+    }
 
     // Wait for React to render posts (img inside post links)
     try {
-        await _page.waitForSelector('a[href*="/p/"] img', { timeout: 20000 });
-    } catch (e) {
+        await withPage(() => _page.waitForSelector('a[href*="/p/"] img', { timeout: 20000 }));
+    } catch {
         console.log(`  [WARN] No posts appeared — page may be blocked`);
     }
-    await _page.waitForTimeout(1000);
+    await sleep(1000);
 
     // Scroll to load more posts (lazy loading)
     let prevCount = 0;
     let scrollCount = 0;
     const maxScrolls = MAX_SCROLL_HASHTAG || 50;
-    // post limit: config value, or null = unlimited (use very large number)
     const postLimit = (POSTS_PER_HASHTAG !== null && POSTS_PER_HASHTAG !== undefined) ? POSTS_PER_HASHTAG : 999999;
 
     while (scrollCount < maxScrolls) {
-        const urls = await _page.$$eval('a[href*="/p/"]',
-            els => [...new Set(els.map(e => e.href.split('?')[0]))]);
+        let urls = [];
+        try {
+            urls = await withPage(() => _page.$$eval('a[href*="/p/"]',
+                els => [...new Set(els.map(e => e.href.split('?')[0]))]));
+        } catch { urls = []; }
         const currentCount = urls.length;
 
         if (currentCount >= postLimit) break;
         if (currentCount === prevCount && scrollCount > 3) break;
 
         prevCount = currentCount;
-        await _page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        // Wait for React to render new posts after scroll
         try {
-            await _page.waitForSelector('a[href*="/p/"] img', { timeout: 8000 });
-        } catch (e) { /* timed out, will count anyway */ }
-        await _page.waitForTimeout(1000);
+            await withPage(() => _page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)));
+            await withPage(() => _page.waitForSelector('a[href*="/p/"] img', { timeout: 8000 }));
+        } catch { /* timed out, will count anyway */ }
+        await sleep(1000);
         scrollCount++;
     }
 
-    // Extract post URLs (for reference)
-    const postUrls = await _page.$$eval('a[href*="/p/"]',
-        els => [...new Set(els.map(e => e.href.split('?')[0]))]);
+    let postUrls = [];
+    try {
+        postUrls = await withPage(() => _page.$$eval('a[href*="/p/"]',
+            els => [...new Set(els.map(e => e.href.split('?')[0]))]));
+    } catch { postUrls = []; }
 
     console.log(`  Found ${postUrls.length} post URLs (${scrollCount} scrolls)`);
     if (postUrls.length === 0) return [];
