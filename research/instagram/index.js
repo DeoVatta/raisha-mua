@@ -57,6 +57,27 @@ import {
 // Track current hashtag for SIGINT crash handler
 let _currentHashtag = null;
 
+// ============== TEMP CLEANUP ==============
+async function cleanupTemp() {
+    const fs = await import('fs');
+    const path = await import('path');
+    const os = await import('os');
+    const tmp = os.tmpdir();
+    // Clean playwright-safe-storage (can fill up disk)
+    try {
+        const pwDir = path.join(tmp, 'playwright-safe-storage');
+        if (fs.existsSync(pwDir)) {
+            const files = fs.readdirSync(pwDir);
+            for (const f of files) {
+                try {
+                    fs.unlinkSync(path.join(pwDir, f));
+                } catch { /* ignore */ }
+            }
+            console.log(`[CLEANUP] Cleared ${files.length} temp files`);
+        }
+    } catch { /* ignore */ }
+}
+
 // ============== MAIN ==============
 async function run() {
     console.log('='.repeat(60));
@@ -65,6 +86,7 @@ async function run() {
 
     // INIT
     console.log('\n[INIT] Starting...\n');
+    await cleanupTemp();
     await initSheets();
     await initBrowser();
 
@@ -462,12 +484,17 @@ process.on('SIGINT', async () => {
     if (_currentHashtag) {
         await markHashtagDone(_currentHashtag, false).catch(() => {});
     }
+    await cleanupTemp();
     await closeBrowser().catch(() => {});
     process.exit(1);
 });
 
 run().catch(async (e) => {
     console.error('[FATAL]', e.message);
+    if (_currentHashtag) {
+        await markHashtagDone(_currentHashtag, false).catch(() => {});
+    }
+    await cleanupTemp();
     await closeBrowser().catch(() => {});
     process.exit(1);
 });

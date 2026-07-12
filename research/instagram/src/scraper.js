@@ -108,10 +108,23 @@ async function fetchPostCommentsGraphQL(shortcode, after = '') {
     await sleep(REQUEST_DELAY * 1000);
     const variables = JSON.stringify({ shortcode, first: 50, after });
     const url = `https://www.instagram.com/graphql/query/?query_hash=bc3296d1ce80a24b1b6e40b1e72903f5&variables=${encodeURIComponent(variables)}`;
-    const res = await igFetch(url);
+    let res = await igFetch(url);
+
+    // Retry once with fresh auth on auth failure (stale sessionid/csrf)
+    if (res.status !== 200 && after === '') {
+        await ensureAuth();
+        loadCookies();
+        res = await igFetch(url);
+    }
 
     if (res.status !== 200) {
-        console.log(`  [GRAPHQL COMMENTS ERROR] ${res.status}: ${res.body.substring(0, 100)}`);
+        // Check body for specific auth errors
+        const body = res.body.substring(0, 200);
+        if (body.includes('login') || body.includes('Please wait') || body.includes('checkpoint')) {
+            console.log(`  [GRAPHQL AUTH] Instagram checkpoint/block — skipping comment fetch`);
+        } else {
+            console.log(`  [GRAPHQL COMMENTS ERROR] ${res.status}: ${body}`);
+        }
         return { comments: [], pageInfo: { hasNextPage: false, endCursor: null }, totalCount: 0 };
     }
 
@@ -175,6 +188,7 @@ async function fetchAllPostCommentsGraphQL(shortcode, maxComments = 100) {
 let _browser = null;
 let _context = null;
 let _page = null;
+let _browserCrashed = false;
 
 function makeStealthContext() {
     return {
@@ -187,8 +201,38 @@ function makeStealthContext() {
     };
 }
 
+async function closeBrowser() {
+    _browserCrashed = false;
+    if (_browser) {
+        await _browser.close().catch(() => {});
+        _browser = null;
+        _context = null;
+        _page = null;
+    }
+}
+
+// Ensure browser is alive — reinitialize if crashed or stale
+async function ensureBrowserReady() {
+    if (!_browser || _browserCrashed) {
+        await closeBrowser();
+        await initBrowser();
+        return true; // reinitialized
+    }
+    // Quick health check: try to get page URL
+    try {
+        _page.url();
+        return false; // healthy
+    } catch {
+        _browserCrashed = true;
+        await closeBrowser();
+        await initBrowser();
+        return true; // reinitialized
+    }
+}
+
 async function initBrowser() {
     if (_browser) return;
+    _browserCrashed = false;
 
     // ensureAuth() validates/creates session and returns fresh cookies.
     // Use those directly — do NOT re-read from file (which may have stale sessionid).
@@ -249,7 +293,8 @@ async function initBrowser() {
 // Instagram-set ones (ig_did, ig_nrcb, datr, mid, etc.) that are needed
 // for API calls to return 200 instead of 302.
 async function refreshCookieStr() {
-    if (!_context) return;
+    // Ensure browser is alive before accessing cookies
+    await ensureBrowserReady();
     // IMPORTANT: never overwrite user's original sessionid — browser's stealth browser
     // creates its own session which may have different expiration date, causing
     // session validity check to fail on next run → infinite login loop.
@@ -273,14 +318,7 @@ async function refreshCookieStr() {
     _csrftoken = _cookies.find(c => c.name === 'csrftoken')?.value || '';
 }
 
-async function closeBrowser() {
-    if (_browser) {
-        await _browser.close();
-        _browser = null;
-        _context = null;
-        _page = null;
-    }
-}
+// closeBrowser moved above ensureBrowserReady
 
 function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
@@ -615,11 +653,24 @@ async function enrichPostsBatch(urls) {
 
 // ============== PROFILE ENRICHMENT
 async function enrichProfileFromPage(username) {
-    if (!_page) await initBrowser();
+    // Ensure browser is alive before using
+    await ensureBrowserReady();
     await sleep(REQUEST_DELAY * 1000);
 
     const profileUrl = `https://www.instagram.com/${username}/`;
-    await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    try {
+        await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (e) {
+        if (e.message.includes('closed')) {
+            _browserCrashed = true;
+            console.log(`  [BROWSER] @${username} — browser crashed, reinitializing...`);
+            await ensureBrowserReady();
+            await sleep(2000);
+            await _page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } else {
+            throw e;
+        }
+    }
     await _page.waitForTimeout(3000);
 
     const bodyLen = await _page.evaluate(() => document.body.innerHTML.length);
@@ -767,7 +818,7 @@ function buildFallbackProfile(username) {
  * Instagram embeds hashtag posts in window._sharedData on the search page.
  */
 async function scrapeHashtag(hashtag, maxPosts = 200) {
-    if (!_page) await initBrowser();
+    await ensureBrowserReady();
 
     console.log(`[HASHTAG] #${hashtag}`);
     const searchUrl = `https://www.instagram.com/explore/search/keyword/?q=%23${encodeURIComponent(hashtag)}`;
