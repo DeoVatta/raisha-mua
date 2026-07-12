@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isIndonesian } from './classifier.js';
+import { classifyHashtagsBatch } from './ai-classifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHEETS_ID = '1xljNVmDBRHTVI7kQUCE4ALfc1Fbzue9-kiyHA0lYGwM';
@@ -225,7 +226,6 @@ const _genericHashtags = new Set([
 // Batch buffer: collect discovered hashtags per hashtag run,
 // flush to sheet at end via AI classification.
 const _hashtagBuffer = []; // [{ tag, sourceUsername }]
-let _hashtagBufferFlushed = false;
 
 function bufferHashtag(tag, sourceUsername) {
     const clean = tag.replace(/^#/, '').toLowerCase().trim();
@@ -237,22 +237,31 @@ function bufferHashtag(tag, sourceUsername) {
     _hashtagBuffer.push({ tag: clean, sourceUsername });
 }
 
-async function flushHashtagBuffer(approvedTags) {
+async function flushHashtagBuffer() {
     if (!sheetsClient || _hashtagBuffer.length === 0) {
         _hashtagBuffer.length = 0;
+        _hashtagBufferFlushed = false;
         return;
     }
-    _hashtagBufferFlushed = true;
 
-    // approvedTags is a Set of tag strings from AI classification
-    const approvedSet = new Set(approvedTags.map(t => t.replace(/^#/, '').toLowerCase().trim()));
+    // Call AI to classify buffered hashtags
+    const tagNames = _hashtagBuffer.map(h => h.tag);
+    let approvedResults;
+    try {
+        approvedResults = await classifyHashtagsBatch(tagNames);
+    } catch (e) {
+        console.warn(`  [AI FLUSH] AI classification failed: ${e.message} — keeping all buffered hashtags`);
+        approvedResults = tagNames.map(t => ({ tag: '#' + t, business: true }));
+    }
+
+    const approvedSet = new Set(approvedResults.filter(r => r.business).map(r => r.tag.replace(/^#/, '').toLowerCase()));
     const today = new Date().toISOString().split('T')[0];
     const rows = [];
     let written = 0;
 
     for (const { tag, sourceUsername } of _hashtagBuffer) {
         if (!approvedSet.has(tag)) {
-            console.log(`  [FILTERED BY AI] #${tag} — not wedding/wisuda`);
+            console.log(`  [FILTERED] #${tag} — not wedding/wisuda`);
             continue;
         }
         rows.push([tag, `@${sourceUsername}`, '1', today, 'NEW']);
@@ -286,38 +295,9 @@ export async function writeNewHashtagBuffered(tag, sourceUsername) {
 }
 
 async function writeNewHashtag(hashtag, sourceUsername) {
-    // Legacy direct write — use bufferHashtag() instead for new code
-    if (_hashtagBufferFlushed) {
-        // After first flush, continue using buffer
-        bufferHashtag(hashtag, sourceUsername);
-        return;
-    }
-    if (!sheetsClient || !hashtag) return;
-    const clean = hashtag.replace(/^#/, '').toLowerCase().trim();
-    if (!clean) return;
-    if (_seenHashtags.has(clean)) return;
-    if (_genericHashtags.has(clean)) return;
-
-    await acquireLock('VendorHashtags').prev;
-    const lockState = {};
-    _locks.VendorHashtags = _locks.VendorHashtags.then(() => {
-        lockState.release = () => { _locks.VendorHashtags = Promise.resolve(); };
-    });
-    try {
-        if (_seenHashtags.has(clean)) return;
-
-        const today = new Date().toISOString().split('T')[0];
-        const ok = await sheetsAppend('VendorHashtags', 'F', [[clean, `@${sourceUsername}`, '1', today, 'NEW']]);
-
-        if (ok) {
-            _seenHashtags.add(clean);
-            console.log(`  [NEW HASHTAG] #${clean} from @${sourceUsername}`);
-        } else {
-            console.log(`  [SKIP HASHTAG] #${clean} write failed, will retry next run`);
-        }
-    } finally {
-        if (lockState.release) lockState.release();
-    }
+    // writeNewHashtag: redirect to buffer (all hashtag writes go through AI classification)
+async function writeNewHashtag(tag, sourceUsername) {
+    bufferHashtag(tag, sourceUsername);
 }
 
 async function readVisitedProfiles() {

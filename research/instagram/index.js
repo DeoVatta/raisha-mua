@@ -45,7 +45,6 @@ import {
     markHashtagExecuting,
     markHashtagDone,
 } from './src/sheets.js';
-import { classifyHashtagsBatch } from './src/ai-classifier.js';
 import { isIndonesian } from './src/classifier.js';
 import {
     MAX_COLLAB_DEPTH,
@@ -271,8 +270,8 @@ async function run() {
         console.log('[PHASE 7] AI hashtag classification (batch)...');
         console.log('-'.repeat(60) + '\n');
 
-        const approvedTags = await classifyHashtagsBatch([]);
-        await flushHashtagBuffer(approvedTags);
+        // Call AI to classify buffered hashtags, flush only approved ones to sheet
+        await flushHashtagBuffer();
 
         // ================================================================
         // PHASE 8 — Comment extraction: hashtag posts + vendor posts → clients
